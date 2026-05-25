@@ -444,3 +444,14 @@ fit$S_bik[[i0]]
 ##############
 ##### 7 ######
 ##############
+
+
+out <- test_MPP_para_t_basic()
+
+out$Sigma
+out$invSigma
+out$Sigma_times_invSigma
+out$mu_i
+out$Z_i
+out$Lvec_i
+

@@ -507,9 +507,9 @@ List init_LME2_one_marker(const arma::vec& weights,
   return List::create(
     _["delta_k"] = delta,
     _["sig2_k"] = sig2,
-    _["Sigma_bk"] = Sigma_b,
-    _["mu_bik"] = mu_b,
-    _["S_bik"] = S_b
+    _["Sigma_bb_k"] = Sigma_b,
+    _["mu_b_ik"] = mu_b,
+    _["S_bb_ik"] = S_b
   );
 }
 
@@ -518,3 +518,333 @@ List init_LME2_one_marker(const arma::vec& weights,
 
 
 
+
+// Stack a field of vectors into one long vector:
+// input:  field with K vectors
+// output: [x_1; x_2; ...; x_K]
+arma::vec stack_vec_field(const arma::field<arma::vec>& x) {
+
+  int total_dim = 0;
+
+  for (int k = 0; k < x.n_elem; k++) {
+    total_dim += x(k).n_elem;
+  }
+
+  arma::vec out(total_dim, arma::fill::zeros);
+
+  int start = 0;
+
+  for (int k = 0; k < x.n_elem; k++) {
+    int len = x(k).n_elem;
+
+    if (len > 0) {
+      out.subvec(start, start + len - 1) = x(k);
+    }
+
+    start += len;
+  }
+
+  return out;
+}
+
+
+
+struct PP2_one_marker_para_t {
+  arma::vec beta_time;      // fixed effects in log lambda_ik(s)
+  arma::mat Sigma_aa_k;     // covariance of a_ik
+  arma::mat invSigma_aa_k;
+
+  arma::field<arma::vec> mu_a_ik;   // n x 1, variational mean of a_ik
+  arma::field<arma::mat> S_aa_ik;   // n x 1, variational covariance of a_ik
+
+  arma::field<arma::vec> Lvec_a_ik;
+  arma::mat Lmat_aa_k;
+};
+
+
+
+struct MPP_para_t {
+
+  // -----------------------------
+  // Basic dimensions
+  // -----------------------------
+  int n;
+  int K;
+
+  arma::uvec q_a_vec;   // dim(a_ik) for each biomarker k
+  arma::uvec q_b_vec;   // dim(b_ik) for each biomarker k
+  arma::uvec q_c_vec;   // dim(c_ik) = q_a_k + q_b_k
+
+  // -----------------------------
+  // Measurement-time submodel
+  // log lambda_ik(s) = x_i^T alpha_k + psi_1(s)^T theta_k + psi_2(s)^T a_ik
+  // -----------------------------
+  arma::field<arma::vec> beta_time;
+  // beta_time(k) stacks alpha_k and theta_k
+
+  // -----------------------------
+  // Mark/value submodel
+  // w_ik(s) = u_ik(s)^T delta_k + v_ik(s)^T b_ik + error
+  // -----------------------------
+  arma::field<arma::vec> delta;
+  // delta(k) = fixed effects for mark/value model of biomarker k
+
+  arma::vec sig2;
+  // sig2(k) = sigma_k^2
+
+  // -----------------------------
+  // Binary outcome submodel
+  // eta_i = z_i^T gamma + sum_k a_ik^T H alpha_c,k
+  //       + sum_k b_ik^T G_ik beta_c,k
+  // -----------------------------
+  arma::vec gamma;
+
+  arma::field<arma::vec> alpha_c;
+  // alpha_c(k) = coefficient basis parameters for measurement-time effect
+
+  arma::field<arma::vec> beta_c;
+  // beta_c(k) = coefficient basis parameters for mark/value effect
+
+  // -----------------------------
+  // Prior covariance of c_i
+  // Sigma = Bdiag(Sigma_1, ..., Sigma_K)
+  // Sigma_k contains aa, ab, ba, bb blocks
+  // -----------------------------
+  arma::field<arma::mat> Sigma_k;
+  arma::mat Sigma;
+  arma::mat invSigma;
+
+  arma::field<arma::mat> invSigma_k;
+
+  // Cholesky factor of invSigma, useful for optimization
+  arma::mat Lmat;
+
+  // -----------------------------
+  // Variational parameters
+  // q_i(c_i) = N(mu_i, Z_i)
+  // -----------------------------
+  arma::field<arma::vec> mu_i;
+  arma::field<arma::mat> Z_i;
+  arma::field<arma::vec> Lvec_i;
+
+  // biomarker-specific pieces
+  arma::field<arma::vec> mu_ik;  // n x K, each = (mu_a_ik, mu_b_ik)
+  arma::field<arma::mat> Z_ik;   // n x K, each block for c_ik
+
+  // -----------------------------
+  // Constructor
+  // -----------------------------
+  MPP_para_t(const int n_,
+             const int K_,
+             const arma::field<arma::vec>& beta_time_,
+             const arma::field<arma::vec>& delta_,
+             const arma::vec& sig2_,
+             const arma::vec& gamma_,
+             const arma::field<arma::vec>& alpha_c_,
+             const arma::field<arma::vec>& beta_c_,
+             const arma::field<arma::mat>& Sigma_k_,
+             const arma::field<arma::vec>& mu_ik_,
+             const arma::field<arma::mat>& Z_ik_)
+    :
+    n(n_),
+    K(K_),
+    beta_time(beta_time_),
+    delta(delta_),
+    sig2(sig2_),
+    gamma(gamma_),
+    alpha_c(alpha_c_),
+    beta_c(beta_c_),
+    Sigma_k(Sigma_k_),
+    mu_ik(mu_ik_),
+    Z_ik(Z_ik_)
+  {
+    // construct dimensions
+    q_a_vec = arma::uvec(K);
+    q_b_vec = arma::uvec(K);
+    q_c_vec = arma::uvec(K);
+
+    for (int k = 0; k < K; k++) {
+      q_c_vec(k) = Sigma_k(k).n_rows;
+      // q_a_vec and q_b_vec should usually be passed from data,
+      // but can also be stored separately.
+    }
+
+    // build full Sigma = blockdiag(Sigma_1, ..., Sigma_K)
+    Sigma = Bdiag(Sigma_k);
+    invSigma = myinvCpp(Sigma);
+    Lmat = myCholCpp(invSigma);
+
+    // build invSigma_k
+    invSigma_k = arma::field<arma::mat>(K);
+    for (int k = 0; k < K; k++) {
+      invSigma_k(k) = myinvCpp(Sigma_k(k));
+    }
+
+    // stack mu_ik and Z_ik into mu_i and Z_i
+    mu_i = arma::field<arma::vec>(n);
+    Z_i = arma::field<arma::mat>(n);
+    Lvec_i = arma::field<arma::vec>(n);
+
+    for (int i = 0; i < n; i++) {
+
+      arma::field<arma::vec> mu_blocks(K);
+      arma::field<arma::mat> Z_blocks(K);
+
+      for (int k = 0; k < K; k++) {
+        mu_blocks(k) = mu_ik(i, k);
+        Z_blocks(k) = Z_ik(i, k);
+      }
+
+      mu_i(i) = stack_vec_field(mu_blocks);
+      Z_i(i) = Bdiag(Z_blocks);
+
+      arma::mat Ltmp = myCholCpp(Z_i(i));
+      Lvec_i(i) = LowTriVec(Ltmp);
+    }
+  }
+
+  void updateInvSigma() {
+    invSigma = myinvCpp(Sigma);
+    Lmat = myCholCpp(invSigma);
+
+    for (int k = 0; k < K; k++) {
+      invSigma_k(k) = myinvCpp(Sigma_k(k));
+    }
+  }
+};
+
+
+
+// [[Rcpp::export]]
+List test_MPP_para_t_basic() {
+
+  // -----------------------------
+  // 1. Toy dimensions
+  // -----------------------------
+  int n = 3;   // subjects
+  int K = 2;   // biomarkers
+
+  // For this toy example:
+  // each biomarker has c_ik = (a_ik, b_ik), dimension 2
+  int q_c = 2;
+
+  // -----------------------------
+  // 2. Create toy model parameters
+  // -----------------------------
+
+  arma::field<arma::vec> beta_time(K);
+  arma::field<arma::vec> delta(K);
+  arma::vec sig2(K);
+
+  arma::vec gamma = {0.5, -0.2};  // baseline outcome coefficients
+
+  arma::field<arma::vec> alpha_c(K);
+  arma::field<arma::vec> beta_c(K);
+
+  arma::field<arma::mat> Sigma_k(K);
+
+  for (int k = 0; k < K; k++) {
+
+    // beta_time(k) stacks alpha_k and theta_k
+    beta_time(k) = arma::vec({0.1 + 0.1 * k, 0.2 + 0.1 * k});
+
+    // fixed effects for mark/value submodel
+    delta(k) = arma::vec({1.0 + k, -0.5});
+
+    // residual variance for mark/value submodel
+    sig2(k) = 1.0 + 0.2 * k;
+
+    // coefficients connecting a_ik to outcome
+    alpha_c(k) = arma::vec({0.3 + 0.1 * k});
+
+    // coefficients connecting b_ik to outcome
+    beta_c(k) = arma::vec({-0.2 - 0.1 * k});
+
+    // covariance matrix for c_ik = (a_ik, b_ik)
+    Sigma_k(k) = arma::mat({
+      {1.0 + 0.1 * k, 0.2},
+      {0.2, 1.5 + 0.1 * k}
+    });
+  }
+
+  // -----------------------------
+  // 3. Create toy variational parameters
+  // -----------------------------
+
+  arma::field<arma::vec> mu_ik(n, K);
+  arma::field<arma::mat> Z_ik(n, K);
+
+  for (int i = 0; i < n; i++) {
+    for (int k = 0; k < K; k++) {
+
+      // variational mean for c_ik
+      mu_ik(i, k) = arma::vec({
+        0.1 * i + 0.05 * k,
+        -0.2 * i + 0.03 * k
+      });
+
+      // variational covariance for c_ik
+      Z_ik(i, k) = arma::mat({
+        {1.0 + 0.1 * i, 0.05},
+        {0.05, 1.2 + 0.1 * k}
+      });
+    }
+  }
+
+  // -----------------------------
+  // 4. Construct the new MPP_para_t struct
+  // -----------------------------
+
+  MPP_para_t para(
+      n,
+      K,
+      beta_time,
+      delta,
+      sig2,
+      gamma,
+      alpha_c,
+      beta_c,
+      Sigma_k,
+      mu_ik,
+      Z_ik
+  );
+
+  // -----------------------------
+  // 5. Check important quantities
+  // -----------------------------
+
+  arma::mat check_identity = para.Sigma * para.invSigma;
+
+  // -----------------------------
+  // 6. Return values to R
+  // -----------------------------
+
+  return List::create(
+    _["n"] = para.n,
+    _["K"] = para.K,
+
+    _["beta_time"] = para.beta_time,
+    _["delta"] = para.delta,
+    _["sig2"] = para.sig2,
+    _["gamma"] = para.gamma,
+    _["alpha_c"] = para.alpha_c,
+    _["beta_c"] = para.beta_c,
+
+    _["Sigma_k"] = para.Sigma_k,
+    _["Sigma"] = para.Sigma,
+    _["invSigma"] = para.invSigma,
+    _["Sigma_times_invSigma"] = check_identity,
+    _["invSigma_k"] = para.invSigma_k,
+    _["Lmat"] = para.Lmat,
+
+    _["mu_ik"] = para.mu_ik,
+    _["Z_ik"] = para.Z_ik,
+    _["mu_i"] = para.mu_i,
+    _["Z_i"] = para.Z_i,
+    _["Lvec_i"] = para.Lvec_i,
+
+    _["mu_i_1_length"] = para.mu_i(0).n_elem,
+    _["Z_i_1_dim"] = arma::uvec({para.Z_i(0).n_rows, para.Z_i(0).n_cols}),
+    _["Lvec_i_1_length"] = para.Lvec_i(0).n_elem
+  );
+}

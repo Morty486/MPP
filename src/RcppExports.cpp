@@ -133,6 +133,16 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// test_MPP_para_t_basic
+List test_MPP_para_t_basic();
+RcppExport SEXP _MPP_test_MPP_para_t_basic() {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    rcpp_result_gen = Rcpp::wrap(test_MPP_para_t_basic());
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_MPP_my_trunc", (DL_FUNC) &_MPP_my_trunc, 1},
@@ -145,6 +155,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_MPP_myCholCpp2", (DL_FUNC) &_MPP_myCholCpp2, 1},
     {"_MPP_init_LME", (DL_FUNC) &_MPP_init_LME, 6},
     {"_MPP_init_LME2_one_marker", (DL_FUNC) &_MPP_init_LME2_one_marker, 7},
+    {"_MPP_test_MPP_para_t_basic", (DL_FUNC) &_MPP_test_MPP_para_t_basic, 0},
     {NULL, NULL, 0}
 };
 

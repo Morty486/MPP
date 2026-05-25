@@ -41,3 +41,7 @@ init_LME2_one_marker <- function(weights, W, U, Vdesign, maxiter = 100L, eps = 1
     .Call(`_MPP_init_LME2_one_marker`, weights, W, U, Vdesign, maxiter, eps, ridge)
 }
 
+test_MPP_para_t_basic <- function() {
+    .Call(`_MPP_test_MPP_para_t_basic`)
+}
+
