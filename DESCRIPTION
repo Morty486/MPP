@@ -1,0 +1,16 @@
+Package: MPP
+Type: Package
+Title: A Marked Point Process Extension of Generalized Functional Linear Models for Longitudinal Predictors
+Version: 0.0.1
+Authors@R: person("Hengde", "Ouyang", email = "houya@uic.edu", role = c("aut", "cre"))
+Description: Utility functions for developing generalized functional linear models with point process predictors.
+License: GPL (>= 3)
+Encoding: UTF-8
+LazyData: true
+Imports:
+    Rcpp
+LinkingTo:
+    Rcpp,
+    RcppArmadillo
+Roxygen: list(markdown = TRUE)
+Config/roxygen2/version: 8.0.0
