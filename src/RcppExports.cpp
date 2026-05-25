@@ -100,6 +100,39 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// init_LME
+List init_LME(arma::vec weights, arma::field<arma::vec> Y, arma::field<arma::mat> X, arma::field<arma::mat> Z, const int maxiter, const double eps);
+RcppExport SEXP _MPP_init_LME(SEXP weightsSEXP, SEXP YSEXP, SEXP XSEXP, SEXP ZSEXP, SEXP maxiterSEXP, SEXP epsSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::vec >::type weights(weightsSEXP);
+    Rcpp::traits::input_parameter< arma::field<arma::vec> >::type Y(YSEXP);
+    Rcpp::traits::input_parameter< arma::field<arma::mat> >::type X(XSEXP);
+    Rcpp::traits::input_parameter< arma::field<arma::mat> >::type Z(ZSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxiter(maxiterSEXP);
+    Rcpp::traits::input_parameter< const double >::type eps(epsSEXP);
+    rcpp_result_gen = Rcpp::wrap(init_LME(weights, Y, X, Z, maxiter, eps));
+    return rcpp_result_gen;
+END_RCPP
+}
+// init_LME2_one_marker
+List init_LME2_one_marker(const arma::vec& weights, const arma::field<arma::vec>& W, const arma::field<arma::mat>& U, const arma::field<arma::mat>& Vdesign, const int maxiter, const double eps, const double ridge);
+RcppExport SEXP _MPP_init_LME2_one_marker(SEXP weightsSEXP, SEXP WSEXP, SEXP USEXP, SEXP VdesignSEXP, SEXP maxiterSEXP, SEXP epsSEXP, SEXP ridgeSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::vec& >::type weights(weightsSEXP);
+    Rcpp::traits::input_parameter< const arma::field<arma::vec>& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< const arma::field<arma::mat>& >::type U(USEXP);
+    Rcpp::traits::input_parameter< const arma::field<arma::mat>& >::type Vdesign(VdesignSEXP);
+    Rcpp::traits::input_parameter< const int >::type maxiter(maxiterSEXP);
+    Rcpp::traits::input_parameter< const double >::type eps(epsSEXP);
+    Rcpp::traits::input_parameter< const double >::type ridge(ridgeSEXP);
+    rcpp_result_gen = Rcpp::wrap(init_LME2_one_marker(weights, W, U, Vdesign, maxiter, eps, ridge));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_MPP_my_trunc", (DL_FUNC) &_MPP_my_trunc, 1},
@@ -110,6 +143,8 @@ static const R_CallMethodDef CallEntries[] = {
     {"_MPP_myinvCpp2", (DL_FUNC) &_MPP_myinvCpp2, 1},
     {"_MPP_myCholCpp", (DL_FUNC) &_MPP_myCholCpp, 1},
     {"_MPP_myCholCpp2", (DL_FUNC) &_MPP_myCholCpp2, 1},
+    {"_MPP_init_LME", (DL_FUNC) &_MPP_init_LME, 6},
+    {"_MPP_init_LME2_one_marker", (DL_FUNC) &_MPP_init_LME2_one_marker, 7},
     {NULL, NULL, 0}
 };
 

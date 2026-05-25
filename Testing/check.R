@@ -13,14 +13,18 @@ library(MPP)
 
 
 
-# 1
+##############
+##### 1 ######
+##############
 V <- matrix(0, 3, 3)
 Lvec <- 1:6
 makeLowTriMat(V, Lvec)
 
 
 
-# 2
+##############
+##### 2 ######
+##############
 
 A <- matrix(1:9, 3, 3)
 
@@ -29,7 +33,9 @@ LowTriVec(A)
 
 
 
-# 3
+##############
+##### 3 ######
+##############
 
 
 # Create two matrices
@@ -46,8 +52,9 @@ Bdiag(M)
 
 
 
-
-# 4
+##############
+##### 4 ######
+##############
 
 # =========================
 # Example 1: symmetric positive definite matrix
@@ -94,7 +101,9 @@ MASS::ginv(C)
 
 
 
-# 5
+##############
+##### 5 ######
+##############
 
 
 # =========================
@@ -142,3 +151,296 @@ C <- matrix(c(0, 0,
 print("myCholCpp fails")
 
 myCholCpp2(C)
+
+
+
+
+##############
+##### 6 ######
+##############
+
+
+library(MPP)
+
+set.seed(123)
+
+# -------------------------
+# Simulate simple LME data
+# y_ij = beta0 + beta1 * time_ij + b_i + error_ij
+# -------------------------
+
+n <- 5          # subjects
+m <- 4          # observations per subject
+
+beta_true <- c(2, 0.5)
+sigma_b <- 1
+sigma_e <- 0.3
+
+weights <- rep(1, n)
+
+Y <- vector("list", n)
+X <- vector("list", n)
+Z <- vector("list", n)
+
+for(i in 1:n){
+  time <- 0:(m - 1)
+
+  X_i <- cbind(1, time)        # fixed effects: intercept + time
+  Z_i <- matrix(1, m, 1)       # random intercept only
+
+  b_i <- rnorm(1, 0, sigma_b)
+  y_i <- X_i %*% beta_true + Z_i * b_i + rnorm(m, 0, sigma_e)
+
+  Y[[i]] <- as.vector(y_i)
+  X[[i]] <- X_i
+  Z[[i]] <- Z_i
+}
+
+fit <- init_LME(
+  weights = weights,
+  Y = Y,
+  X = X,
+  Z = Z,
+  maxiter = 100,
+  eps = 1e-4
+)
+
+fit
+
+fit$beta      # estimated fixed effects
+fit$sig2      # estimated residual variance
+fit$Sigma     # estimated random-effect covariance
+fit$mu        # subject-specific random-effect means
+fit$V         # subject-specific random-effect uncertainty
+
+fit$Sigma
+fit$V[[1]]
+
+
+
+set.seed(123)
+
+library(MASS)
+
+# -----------------------------
+# 1. Simulate toy data
+# -----------------------------
+
+n <- 200                     # number of subjects
+weights <- rep(1, n)
+
+delta_true <- c(2, 1.5)      # fixed effects: intercept and time slope
+sig_true <- 0.2              # residual SD
+sig2_true <- sig_true^2
+
+Sigma_b_true <- matrix(
+  c(0.50, 0.10,
+    0.10, 0.30),
+  nrow = 2,
+  byrow = TRUE
+)
+
+W <- vector("list", n)
+U <- vector("list", n)
+Vdesign <- vector("list", n)
+
+b_true <- MASS::mvrnorm(
+  n = n,
+  mu = c(0, 0),
+  Sigma = Sigma_b_true
+)
+
+for (i in 1:n) {
+
+  # random number of observations per subject
+  mi <- sample(3:8, size = 1)
+
+  # irregular observation times
+  time_i <- sort(runif(mi, 0, 1))
+
+  # fixed-effect design matrix U_i
+  # columns: intercept, time
+  U_i <- cbind(1, time_i)
+
+  # random-effect design matrix V_i
+  # also random intercept and random slope
+  V_i <- cbind(1, time_i)
+
+  # generate biomarker values
+  mean_i <- U_i %*% delta_true + V_i %*% b_true[i, ]
+  W_i <- as.numeric(mean_i + rnorm(mi, mean = 0, sd = sig_true))
+
+  W[[i]] <- W_i
+  U[[i]] <- U_i
+  Vdesign[[i]] <- V_i
+}
+
+# -----------------------------
+# 2. Add one subject with no observations
+# -----------------------------
+# This checks whether your empty-vector case works.
+
+W[[1]] <- numeric(0)
+U[[1]] <- matrix(numeric(0), nrow = 0, ncol = 2)
+Vdesign[[1]] <- matrix(numeric(0), nrow = 0, ncol = 2)
+
+# -----------------------------
+# 3. Run init_LME2_one_marker()
+# -----------------------------
+
+fit <- init_LME2_one_marker(
+  weights = weights,
+  W = W,
+  U = U,
+  Vdesign = Vdesign,
+  maxiter = 100,
+  eps = 1e-5
+)
+
+# -----------------------------
+# 4. Check results
+# -----------------------------
+
+fit$delta_k
+delta_true
+
+fit$sig2_k
+sig2_true
+
+fit$Sigma_bk
+Sigma_b_true
+
+# Check dimensions of variational/posterior quantities
+length(fit$mu_bik)
+length(fit$S_bik)
+
+fit$mu_bik[[2]]
+fit$S_bik[[2]]
+
+
+fit$delta_k
+# close to c(2, 1.5)
+
+fit$sig2_k
+# close to 0.04
+
+fit$Sigma_bk
+# roughly close to:
+#      [,1] [,2]
+# [1,] 0.50 0.10
+# [2,] 0.10 0.30
+
+
+
+# More patients have no observations on one biomarker
+
+# -----------------------------
+# 1. Simulate toy data
+# -----------------------------
+
+n <- 200
+weights <- rep(1, n)
+
+delta_true <- c(2, 1.5)
+sig_true <- 0.2
+sig2_true <- sig_true^2
+
+Sigma_b_true <- matrix(
+  c(0.50, 0.10,
+    0.10, 0.30),
+  nrow = 2,
+  byrow = TRUE
+)
+
+W <- vector("list", n)
+U <- vector("list", n)
+Vdesign <- vector("list", n)
+
+b_true <- MASS::mvrnorm(
+  n = n,
+  mu = c(0, 0),
+  Sigma = Sigma_b_true
+)
+
+# proportion of subjects with no observations
+missing_prob <- 0.35
+
+missing_id <- rep(FALSE, n)
+
+for (i in 1:n) {
+
+  # Some subjects have no observations for this biomarker
+  if (runif(1) < missing_prob) {
+
+    W[[i]] <- numeric(0)
+    U[[i]] <- matrix(numeric(0), nrow = 0, ncol = 2)
+    Vdesign[[i]] <- matrix(numeric(0), nrow = 0, ncol = 2)
+
+    missing_id[i] <- TRUE
+
+  } else {
+
+    # random number of observations per observed subject
+    mi <- sample(3:8, size = 1)
+
+    # irregular observation times
+    time_i <- sort(runif(mi, 0, 1))
+
+    # fixed-effect design: intercept + time
+    U_i <- cbind(1, time_i)
+
+    # random-effect design: random intercept + random slope
+    V_i <- cbind(1, time_i)
+
+    # generate observed biomarker values
+    mean_i <- U_i %*% delta_true + V_i %*% b_true[i, ]
+    W_i <- as.numeric(mean_i + rnorm(mi, mean = 0, sd = sig_true))
+
+    W[[i]] <- W_i
+    U[[i]] <- U_i
+    Vdesign[[i]] <- V_i
+  }
+}
+
+# Check how many subjects have no observations
+table(missing_id)
+mean(missing_id)
+
+fit <- init_LME2_one_marker(
+  weights = weights,
+  W = W,
+  U = U,
+  Vdesign = Vdesign,
+  maxiter = 100,
+  eps = 1e-5
+)
+
+
+fit$delta_k
+delta_true
+
+fit$sig2_k
+sig2_true
+
+fit$Sigma_bk
+Sigma_b_true
+
+
+empty_subjects <- which(missing_id)
+
+# First subject with no observations
+i0 <- empty_subjects[1]
+
+
+fit$mu_bik[[i0]]
+# approximately c(0, 0)
+
+fit$S_bik[[i0]]
+# equal or close to the initialized/estimated Sigma_bk
+
+
+
+
+##############
+##### 7 ######
+##############

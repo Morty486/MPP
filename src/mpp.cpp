@@ -249,8 +249,269 @@ arma::mat myCholCpp2(arma::mat A){
 
 
 
+// [[Rcpp::export]]
+List init_LME(arma::vec weights, arma::field<arma::vec> Y,
+              arma::field<arma::mat> X, arma::field<arma::mat> Z,
+              const int maxiter=100, const double eps=1e-4){
+
+  const int n = Y.n_elem;
+  const int px = X(0).n_cols;
+  const int pz = Z(0).n_cols;
+  const int npara = pz*pz + px + 1;
+
+  arma::field<arma::vec> mu(n);
+  arma::field<arma::mat> V(n);
+  arma::vec beta(px);
+  double sig2 = 1;
+  arma::mat Sigma(pz,pz);
+  Sigma.zeros();
+  Sigma.diag().fill(1.0);
+  arma::mat Sigma_inv = Sigma;
+
+  double N=0;
+  arma::mat XXinv(px,px, arma::fill::zeros);
+  arma::vec XY(px, arma::fill::zeros);
+  arma::field<arma::mat> ZZ(n);
+  for(int i=0; i<n; i++){
+    if(Y(i).n_elem > 0){
+      XXinv += weights(i) * X(i).t() * X(i);
+      XY += weights(i) * X(i).t() * Y(i);
+      N += weights(i) * Y(i).n_elem;
+      ZZ(i) =  Z(i).t() * Z(i);
+    }
+  }
+  //XXinv = myinvCpp(XXinv);
+  //beta = XXinv*XY;
+  beta = arma::solve(XXinv, XY);
+
+  arma::mat Sigma_tmp(pz, pz, arma::fill::zeros);
+  int iter = 0;
+  arma::vec beta_00 = beta;
+  arma::mat Sigma_00 = Sigma;
+  double sig2_00 = sig2;
+
+  for(iter=0; iter < maxiter; iter++){
+
+    beta_00 = beta;
+    Sigma_00 = Sigma;
+    sig2_00 = sig2;
+    // update mu_i and V_i
+    Sigma_tmp.zeros();
+    XY.zeros();
+    XXinv.zeros();
+    for(int i=0; i<n; i++){
+      if(Y(i).n_elem > 0){
+        V(i) =  myinvCpp(ZZ(i) + sig2 * Sigma_inv);
+        mu(i) =  V(i) * Z(i).t() *(Y(i) - X(i)* beta);
+        V(i) *=  sig2;
+        Sigma_tmp += weights(i) * (mu(i)*mu(i).t() + V(i));
+
+        arma::mat ZVZ = - Z(i) *V(i)*Z(i).t() / sig2/ sig2;
+        ZVZ.diag() += 1/ sig2;
+
+        XXinv += weights(i) * X(i).t() * ZVZ * X(i);
+        XY += weights(i) * X(i).t() * ZVZ * Y(i);
+      }else{
+        mu(i).zeros();
+        V(i) = Sigma;
+        Sigma_tmp += weights(i) * (mu(i)*mu(i).t() + V(i));
+      }
+    }
+
+    //beta = XXinv*XY;
+    beta = arma::solve(XXinv, XY);
+    Sigma = Sigma_tmp/arma::accu(weights);
+    Sigma_inv = myinvCpp(Sigma);
+
+    // update sig2;
+    sig2 = 0;
+    for(int i=0; i<n; i++){
+      if(Y(i).n_elem > 0){
+        sig2 += weights(i) * (
+          arma::trace(V(i) * ZZ(i)) +
+            arma::accu(arma::square(
+                Y(i) - X(i)*beta - Z(i)*mu(i)))
+        );
+      }
+    }
+    sig2 /= N;
+
+    if(iter > 1){
+
+      double err_para = arma::accu( arma::square(beta_00-beta)) +
+        arma::accu( arma::square(Sigma_00-Sigma))+
+        (sig2_00-sig2)*(sig2_00-sig2);
+
+      err_para = std::sqrt(err_para/npara);
+      //Rcout << iter << " err_para=" << err_para <<"\n";
+
+      if(err_para<eps){
+        break;
+      }
+
+    }
+  }
+
+  return List::create(
+    _["sig2"] = sig2,
+    _["Sigma"] = Sigma,
+    _["beta"] = beta,
+    _["mu"] = mu,
+    _["V"] = V
+  );
+
+}
 
 
+
+
+// Initialize one continuous biomarker/mark process k:
+//
+// W(i)      = vector of observed values w_ik
+// U(i)      = fixed-effect design matrix U_ik
+// Vdesign(i)= random-effect design matrix V_ik
+//
+// Model:
+// W_i = U_i delta + V_i b_i + e_i
+// b_i ~ N(0, Sigma_b)
+// e_i ~ N(0, sig2 I)
+
+// [[Rcpp::export]]
+List init_LME2_one_marker(const arma::vec& weights,
+                          const arma::field<arma::vec>& W,
+                          const arma::field<arma::mat>& U,
+                          const arma::field<arma::mat>& Vdesign,
+                          const int maxiter = 100,
+                          const double eps = 1e-4,
+                          const double ridge = 1e-8) {
+
+  const int n = W.n_elem;
+  const int p_delta = U(0).n_cols;
+  const int q_b = Vdesign(0).n_cols;
+  const int npara = q_b * q_b + p_delta + 1;
+
+  arma::field<arma::vec> mu_b(n);
+  arma::field<arma::mat> S_b(n);
+
+  arma::vec delta(p_delta, arma::fill::zeros);
+  double sig2 = 1.0;
+
+  arma::mat Sigma_b(q_b, q_b, arma::fill::eye);
+  arma::mat Sigma_b_inv = Sigma_b;
+
+  double Nobs = 0.0;
+  arma::mat UU(p_delta, p_delta, arma::fill::zeros);
+  arma::vec UW(p_delta, arma::fill::zeros);
+  arma::field<arma::mat> VV(n);
+
+  // Initial weighted least squares for delta
+  for (int i = 0; i < n; i++) {
+    if (W(i).n_elem > 0) {
+      UU += weights(i) * U(i).t() * U(i);
+      UW += weights(i) * U(i).t() * W(i);
+      VV(i) = Vdesign(i).t() * Vdesign(i);
+      Nobs += weights(i) * W(i).n_elem;
+    }
+  }
+
+  UU += ridge * arma::eye(p_delta, p_delta);
+  delta = arma::solve(UU, UW);
+
+  arma::vec delta_old = delta;
+  arma::mat Sigma_old = Sigma_b;
+  double sig2_old = sig2;
+
+  for (int iter = 0; iter < maxiter; iter++) {
+
+    delta_old = delta;
+    Sigma_old = Sigma_b;
+    sig2_old = sig2;
+
+    arma::mat Sigma_tmp(q_b, q_b, arma::fill::zeros);
+    UU.zeros();
+    UW.zeros();
+
+    for (int i = 0; i < n; i++) {
+
+      if (W(i).n_elem > 0) {
+
+        // Posterior covariance of b_i
+        arma::mat S_unscaled = myinvCpp(VV(i) + sig2 * Sigma_b_inv);
+
+        // Posterior mean of b_i
+        mu_b(i) = S_unscaled * Vdesign(i).t() * (W(i) - U(i) * delta);
+
+        // Convert to actual posterior covariance
+        S_b(i) = sig2 * S_unscaled;
+
+        Sigma_tmp += weights(i) * (mu_b(i) * mu_b(i).t() + S_b(i));
+
+        // Working inverse marginal covariance for updating delta
+        arma::mat Vinv_work =
+          - Vdesign(i) * S_b(i) * Vdesign(i).t() / (sig2 * sig2);
+
+          Vinv_work.diag() += 1.0 / sig2;
+
+          UU += weights(i) * U(i).t() * Vinv_work * U(i);
+          UW += weights(i) * U(i).t() * Vinv_work * W(i);
+
+      } else {
+
+        // No observed mark values for this biomarker:
+        // posterior remains prior
+        mu_b(i) = arma::zeros(q_b);
+        S_b(i) = Sigma_b;
+
+        Sigma_tmp += weights(i) * (mu_b(i) * mu_b(i).t() + S_b(i));
+      }
+    }
+
+    UU += ridge * arma::eye(p_delta, p_delta);
+    delta = arma::solve(UU, UW);
+
+    Sigma_b = Sigma_tmp / arma::accu(weights);
+    Sigma_b_inv = myinvCpp(Sigma_b);
+
+    // Update residual variance sigma_k^2
+    sig2 = 0.0;
+
+    for (int i = 0; i < n; i++) {
+      if (W(i).n_elem > 0) {
+        arma::vec resid = W(i) - U(i) * delta - Vdesign(i) * mu_b(i);
+
+        sig2 += weights(i) * (
+          arma::trace(S_b(i) * VV(i)) +
+            arma::accu(arma::square(resid))
+        );
+      }
+    }
+
+    if (Nobs > 0) {
+      sig2 /= Nobs;
+    } else {
+      sig2 = 1.0;
+    }
+
+    double err_para =
+      arma::accu(arma::square(delta_old - delta)) +
+      arma::accu(arma::square(Sigma_old - Sigma_b)) +
+      std::pow(sig2_old - sig2, 2.0);
+
+    err_para = std::sqrt(err_para / npara);
+
+    if (iter > 1 && err_para < eps) {
+      break;
+    }
+  }
+
+  return List::create(
+    _["delta_k"] = delta,
+    _["sig2_k"] = sig2,
+    _["Sigma_bk"] = Sigma_b,
+    _["mu_bik"] = mu_b,
+    _["S_bik"] = S_b
+  );
+}
 
 
 

@@ -33,3 +33,11 @@ myCholCpp2 <- function(A) {
     .Call(`_MPP_myCholCpp2`, A)
 }
 
+init_LME <- function(weights, Y, X, Z, maxiter = 100L, eps = 1e-4) {
+    .Call(`_MPP_init_LME`, weights, Y, X, Z, maxiter, eps)
+}
+
+init_LME2_one_marker <- function(weights, W, U, Vdesign, maxiter = 100L, eps = 1e-4, ridge = 1e-8) {
+    .Call(`_MPP_init_LME2_one_marker`, weights, W, U, Vdesign, maxiter, eps, ridge)
+}
+
