@@ -1,6 +1,15 @@
-setwd("/Users/ayakaouyang/Documents/GLMpp/2025/GLMpp/GLMpp")
+
+
+setwd("~/Documents/MPP")
+
+# save all files first in RStudio
 Rcpp::compileAttributes()
-devtools::load_all()
+
+devtools::clean_dll()
+devtools::load_all(reset = TRUE, recompile = TRUE)
+library(MPP)
+
+
 
 
 
@@ -18,12 +27,118 @@ A <- matrix(1:9, 3, 3)
 LowTriVec(A)
 
 
+
+
 # 3
-mu <- c(10,20,30,40,50)
-p_z_vec <- c(2,3)
-
-vec_to_field(mu, p_z_vec)
 
 
+# Create two matrices
+A <- matrix(c(1, 2,
+              3, 4), nrow = 2, byrow = TRUE)
+
+B <- matrix(c(5, 6, 7), nrow = 1)
+
+# Create a list (R will convert to arma::field<arma::mat>)
+M <- list(A, B)
+
+# Run Bdiag
+Bdiag(M)
 
 
+
+
+# 4
+
+# =========================
+# Example 1: symmetric positive definite matrix
+# =========================
+
+A <- matrix(c(4, 1,
+              1, 3), nrow = 2, byrow = TRUE)
+
+myinvCpp(A)
+
+# Compare with R
+solve(A)
+
+
+# =========================
+# Example 2: non-symmetric matrix
+# inv_sympd() will fail,
+# then arma::inv() will be used
+# =========================
+
+B <- matrix(c(1, 2,
+              3, 4), nrow = 2, byrow = TRUE)
+
+myinvCpp(B)
+myinvCpp2(B)
+
+# Compare with R
+solve(B)
+
+
+# =========================
+# Example 3: singular matrix
+# inv() fails,
+# then pseudoinverse pinv() is used
+# =========================
+
+C <- matrix(c(1, 2,
+              2, 4), nrow = 2, byrow = TRUE)
+
+myinvCpp(C)
+
+# Compare with MASS::ginv()
+MASS::ginv(C)
+
+
+
+# 5
+
+
+# =========================
+# Example 1:
+# Positive definite matrix
+# Normal Cholesky works
+# =========================
+
+A <- matrix(c(4, 1,
+              1, 3), nrow = 2, byrow = TRUE)
+
+myCholCpp(A)
+
+myCholCpp2(A)
+
+# Compare with R
+chol(A)
+
+
+# =========================
+# Example 2:
+# Not positive definite
+# First chol() fails
+# Then diagonal perturbation is added
+# =========================
+
+B <- matrix(c(1, 2,
+              2, 1), nrow = 2, byrow = TRUE)
+
+eigen(B)$values
+
+myCholCpp(B)
+myCholCpp2(B)
+
+# =========================
+# Example 3:
+# Singular matrix
+# Even perturbed chol may fail
+# =========================
+
+C <- matrix(c(0, 0,
+              0, 0), nrow = 2)
+
+# myCholCpp(C)
+print("myCholCpp fails")
+
+myCholCpp2(C)

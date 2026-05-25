@@ -24,13 +24,7 @@ double my_trunc(double x){
 }
 
 
-//' Main function to make a lower-triangular matrix
- //'
- //' @param V a matrix
- //' @param Lvec a vector
- //' @return a matrix
- //' @export
- //'
+
  // [[Rcpp::export]]
  arma::mat makeLowTriMat(const arma::mat& V,
                          const arma::vec& Lvec){
@@ -107,11 +101,9 @@ arma::field<arma::vec> vec_to_field(const arma::vec& mu,
 }
 
 
-//' Main function to make a block-diagonal matrix
- //'
- //' @param M a field of matrix
- //' @return a matrix
- //'
+
+
+
  // [[Rcpp::export]]
  arma::mat Bdiag(const arma::field<arma::mat>& M){
    int nc=0, nr=0;
@@ -175,6 +167,31 @@ arma::mat myinvCpp(const arma::mat& A){
   return B;
 }
 
+// [[Rcpp::export]]
+arma::mat myinvCpp2(const arma::mat& A){
+  bool invflag = false;
+  arma::mat B;
+
+  invflag = arma::inv_sympd(B, A);
+
+  if(!invflag){
+    //Rcout << "inv_sympd failed, try inv\n";
+    invflag = arma::inv(B, A);
+    if(!invflag){
+      //Rcout << "inv failed, try pinv\n";
+      invflag = arma::pinv(B, A);
+
+      if(!invflag){
+        //Rcout << "all inv methods failed!\n";
+        //Rcout << A << "\n";
+        throw std::runtime_error("all inverse methods failed");
+      }
+    }
+  }
+
+  return B;
+}
+
 
 // Cholesky decomposition //
 // [[Rcpp::export]]
@@ -195,6 +212,39 @@ arma::mat myCholCpp(arma::mat A){
   return B;
 }
 
+
+
+// Cholesky decomposition //
+// [[Rcpp::export]]
+arma::mat myCholCpp2(arma::mat A){
+  bool flag = false;
+  arma::mat B(arma::size(A), arma::fill::zeros);
+
+  flag = arma::chol(B, A, "lower");
+
+  if(!flag){
+    arma::vec avec = A.diag();
+    arma::vec tmp = avec.elem(arma::find(avec));
+
+    double val;
+    if(tmp.n_elem == 0){
+      val = 0.01;
+    } else {
+      val = 0.01 * arma::mean(arma::abs(tmp));
+    }
+
+    A.diag() += val;
+
+    flag = arma::chol(B, A, "lower");
+
+    if(!flag){
+      B.zeros();
+      B.diag().fill(val);
+    }
+  }
+
+  return B;
+}
 
 
 

@@ -13,7 +13,7 @@ Rcpp::Rostream<false>& Rcpp::Rcerr = Rcpp::Rcpp_cerr_get();
 
 // my_trunc
 double my_trunc(double x);
-RcppExport SEXP _GLMppTools_my_trunc(SEXP xSEXP) {
+RcppExport SEXP _MPP_my_trunc(SEXP xSEXP) {
 BEGIN_RCPP
     Rcpp::RObject rcpp_result_gen;
     Rcpp::RNGScope rcpp_rngScope_gen;
@@ -22,13 +22,98 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// makeLowTriMat
+arma::mat makeLowTriMat(const arma::mat& V, const arma::vec& Lvec);
+RcppExport SEXP _MPP_makeLowTriMat(SEXP VSEXP, SEXP LvecSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type V(VSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type Lvec(LvecSEXP);
+    rcpp_result_gen = Rcpp::wrap(makeLowTriMat(V, Lvec));
+    return rcpp_result_gen;
+END_RCPP
+}
+// LowTriVec
+arma::vec LowTriVec(const arma::mat& V);
+RcppExport SEXP _MPP_LowTriVec(SEXP VSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type V(VSEXP);
+    rcpp_result_gen = Rcpp::wrap(LowTriVec(V));
+    return rcpp_result_gen;
+END_RCPP
+}
+// Bdiag
+arma::mat Bdiag(const arma::field<arma::mat>& M);
+RcppExport SEXP _MPP_Bdiag(SEXP MSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::field<arma::mat>& >::type M(MSEXP);
+    rcpp_result_gen = Rcpp::wrap(Bdiag(M));
+    return rcpp_result_gen;
+END_RCPP
+}
+// myinvCpp
+arma::mat myinvCpp(const arma::mat& A);
+RcppExport SEXP _MPP_myinvCpp(SEXP ASEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
+    rcpp_result_gen = Rcpp::wrap(myinvCpp(A));
+    return rcpp_result_gen;
+END_RCPP
+}
+// myinvCpp2
+arma::mat myinvCpp2(const arma::mat& A);
+RcppExport SEXP _MPP_myinvCpp2(SEXP ASEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type A(ASEXP);
+    rcpp_result_gen = Rcpp::wrap(myinvCpp2(A));
+    return rcpp_result_gen;
+END_RCPP
+}
+// myCholCpp
+arma::mat myCholCpp(arma::mat A);
+RcppExport SEXP _MPP_myCholCpp(SEXP ASEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type A(ASEXP);
+    rcpp_result_gen = Rcpp::wrap(myCholCpp(A));
+    return rcpp_result_gen;
+END_RCPP
+}
+// myCholCpp2
+arma::mat myCholCpp2(arma::mat A);
+RcppExport SEXP _MPP_myCholCpp2(SEXP ASEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< arma::mat >::type A(ASEXP);
+    rcpp_result_gen = Rcpp::wrap(myCholCpp2(A));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
-    {"_GLMppTools_my_trunc", (DL_FUNC) &_GLMppTools_my_trunc, 1},
+    {"_MPP_my_trunc", (DL_FUNC) &_MPP_my_trunc, 1},
+    {"_MPP_makeLowTriMat", (DL_FUNC) &_MPP_makeLowTriMat, 2},
+    {"_MPP_LowTriVec", (DL_FUNC) &_MPP_LowTriVec, 1},
+    {"_MPP_Bdiag", (DL_FUNC) &_MPP_Bdiag, 1},
+    {"_MPP_myinvCpp", (DL_FUNC) &_MPP_myinvCpp, 1},
+    {"_MPP_myinvCpp2", (DL_FUNC) &_MPP_myinvCpp2, 1},
+    {"_MPP_myCholCpp", (DL_FUNC) &_MPP_myCholCpp, 1},
+    {"_MPP_myCholCpp2", (DL_FUNC) &_MPP_myCholCpp2, 1},
     {NULL, NULL, 0}
 };
 
-RcppExport void R_init_GLMppTools(DllInfo *dll) {
+RcppExport void R_init_MPP(DllInfo *dll) {
     R_registerRoutines(dll, NULL, CallEntries, NULL, NULL);
     R_useDynamicSymbols(dll, FALSE);
 }

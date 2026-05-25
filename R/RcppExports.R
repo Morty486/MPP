@@ -2,6 +2,34 @@
 # Generator token: 10BE3573-1514-4C36-9D1C-5A225CD40393
 
 my_trunc <- function(x) {
-    .Call('_GLMppTools_my_trunc', PACKAGE = 'GLMppTools', x)
+    .Call(`_MPP_my_trunc`, x)
+}
+
+makeLowTriMat <- function(V, Lvec) {
+    .Call(`_MPP_makeLowTriMat`, V, Lvec)
+}
+
+LowTriVec <- function(V) {
+    .Call(`_MPP_LowTriVec`, V)
+}
+
+Bdiag <- function(M) {
+    .Call(`_MPP_Bdiag`, M)
+}
+
+myinvCpp <- function(A) {
+    .Call(`_MPP_myinvCpp`, A)
+}
+
+myinvCpp2 <- function(A) {
+    .Call(`_MPP_myinvCpp2`, A)
+}
+
+myCholCpp <- function(A) {
+    .Call(`_MPP_myCholCpp`, A)
+}
+
+myCholCpp2 <- function(A) {
+    .Call(`_MPP_myCholCpp2`, A)
 }
 
