@@ -63,7 +63,7 @@ library(MPP)
 After pushing the package to GitHub, it can be installed by:
 
 ```r
-devtools::install_github("Morty486/MPP", build_vignettes = FALSE)
+pak::pak("Morty486/MPP")
 library(MPP)
 ```
 
@@ -81,152 +81,6 @@ library(MPP)
 | Multi-marker parameter container | `MPP_para_t` | Stores model parameters, builds full block covariance, and stacks subject-level variational parameters. |
 | Struct test | `test_MPP_para_t_basic()` | Checks dimensions, covariance construction, inverse covariance, and subject-level stacking. |
 
-## Example Usage
-
-### 1. Matrix utility checks
-
-```r
-V <- matrix(0, 3, 3)
-Lvec <- 1:6
-makeLowTriMat(V, Lvec)
-
-A <- matrix(1:9, 3, 3)
-LowTriVec(A)
-
-A <- matrix(c(1, 2,
-              3, 4), nrow = 2, byrow = TRUE)
-B <- matrix(c(5, 6, 7), nrow = 1)
-Bdiag(list(A, B))
-```
-
-### 2. Basic LME initialization
-
-```r
-set.seed(123)
-
-n <- 5
-m <- 4
-weights <- rep(1, n)
-
-beta_true <- c(2, 0.5)
-sigma_b <- 1
-sigma_e <- 0.3
-
-Y <- vector("list", n)
-X <- vector("list", n)
-Z <- vector("list", n)
-
-for (i in 1:n) {
-  time <- 0:(m - 1)
-  X_i <- cbind(1, time)
-  Z_i <- matrix(1, m, 1)
-
-  b_i <- rnorm(1, 0, sigma_b)
-  y_i <- X_i %*% beta_true + Z_i * b_i + rnorm(m, 0, sigma_e)
-
-  Y[[i]] <- as.vector(y_i)
-  X[[i]] <- X_i
-  Z[[i]] <- Z_i
-}
-
-fit <- init_LME(
-  weights = weights,
-  Y = Y,
-  X = X,
-  Z = Z,
-  maxiter = 100,
-  eps = 1e-4
-)
-
-fit$beta
-fit$sig2
-fit$Sigma
-fit$mu
-fit$V
-```
-
-### 3. One-marker longitudinal/mark initialization
-
-```r
-set.seed(123)
-library(MASS)
-
-n <- 200
-weights <- rep(1, n)
-
-delta_true <- c(2, 1.5)
-sig_true <- 0.2
-Sigma_b_true <- matrix(c(0.50, 0.10,
-                         0.10, 0.30),
-                       nrow = 2, byrow = TRUE)
-
-W <- vector("list", n)
-U <- vector("list", n)
-Vdesign <- vector("list", n)
-
-b_true <- MASS::mvrnorm(n = n, mu = c(0, 0), Sigma = Sigma_b_true)
-
-for (i in 1:n) {
-  mi <- sample(3:8, size = 1)
-  time_i <- sort(runif(mi, 0, 1))
-
-  U_i <- cbind(1, time_i)
-  V_i <- cbind(1, time_i)
-
-  mean_i <- U_i %*% delta_true + V_i %*% b_true[i, ]
-  W_i <- as.numeric(mean_i + rnorm(mi, mean = 0, sd = sig_true))
-
-  W[[i]] <- W_i
-  U[[i]] <- U_i
-  Vdesign[[i]] <- V_i
-}
-
-# Example: subject 1 has no observations for this marker
-W[[1]] <- numeric(0)
-U[[1]] <- matrix(numeric(0), nrow = 0, ncol = 2)
-Vdesign[[1]] <- matrix(numeric(0), nrow = 0, ncol = 2)
-
-fit <- init_LME2_one_marker(
-  weights = weights,
-  W = W,
-  U = U,
-  Vdesign = Vdesign,
-  maxiter = 100,
-  eps = 1e-5
-)
-
-fit$delta_k
-fit$sig2_k
-fit$Sigma_bb_k
-fit$mu_b_ik[[2]]
-fit$S_bb_ik[[2]]
-```
-
-### 4. Multi-marker parameter-structure check
-
-```r
-out <- test_MPP_para_t_basic()
-
-names(out)
-out$n
-out$K
-
-out$Sigma
-out$invSigma
-out$Sigma_times_invSigma
-
-out$mu_ik
-out$Z_ik
-out$mu_i
-out$Z_i
-out$Lvec_i
-
-out$mu_i_1_length
-out$Z_i_1_dim
-out$Lvec_i_1_length
-```
-
-This test is useful because it checks whether biomarker-specific quantities such as `mu_ik` and `Z_ik` are correctly stacked into subject-level quantities such as `mu_i` and `Z_i`.
 
 ## Current Data Flow
 
@@ -269,14 +123,9 @@ The current testing script, `check.R`, manually checks:
 - inverse and Cholesky fallback behavior;
 - basic LME initialization on simulated toy data;
 - one-marker longitudinal initialization with irregular observation times;
-- one-marker initialization when some subjects have no biomarker observations;
+- one-marker initialization when more subjects have no biomarker observations;
 - construction of the multi-marker parameter structure.
 
-Run the script after loading the package locally:
-
-```r
-source("check.R")
-```
 
 ## Current Development Notes
 
