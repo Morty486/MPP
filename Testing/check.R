@@ -445,13 +445,69 @@ fit$S_bik[[i0]]
 ##### 7 ######
 ##############
 
-
 out <- test_MPP_para_t_basic()
 
+names(out)
+
+out$n
+out$K
+
+out$beta_time
+out$delta
+out$sig2
+out$gamma
+out$alpha_c
+out$beta_c
+
+out$Sigma_k
 out$Sigma
 out$invSigma
 out$Sigma_times_invSigma
+out$invSigma_k
+out$Lmat
+
+out$mu_ik
+out$Z_ik
 out$mu_i
 out$Z_i
 out$Lvec_i
 
+out$mu_i_1_length
+out$Z_i_1_dim
+out$Lvec_i_1_length
+
+
+out$beta_time[[1]]
+out$beta_time[[2]]
+
+out$delta[[1]]
+out$delta[[2]]
+
+out$Sigma_k[[1]]
+out$Sigma_k[[2]]
+
+out$mu_ik[[1, 1]]
+out$mu_ik[[1, 2]]
+out$mu_ik[[2, 1]]
+
+out$Z_ik[[1, 1]]
+out$Z_ik[[1, 2]]
+
+out$mu_i[[1]]
+out$Z_i[[1]]
+out$Lvec_i[[1]]
+
+
+length(out$beta_time)
+length(out$delta)
+length(out$alpha_c)
+length(out$beta_c)
+length(out$Sigma_k)
+
+dim(out$Sigma)
+dim(out$invSigma)
+dim(out$Lmat)
+
+length(out$mu_i[[1]])
+dim(out$Z_i[[1]])
+length(out$Lvec_i[[1]])
