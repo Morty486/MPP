@@ -2,7 +2,7 @@
 
 An in-progress R/Rcpp package for developing a multi-marker marked point process joint model.
 
-This repository currently focuses on building and testing the computational foundation for the full model: matrix utilities, mixed-effects initialization, one-marker longitudinal/mark initialization, and parameter storage for a future multi-marker marked point process model.
+
 
 ## Project Goal
 
@@ -34,33 +34,9 @@ where `c_ik = (a_ik, b_ik)` and the full subject-level random effects vector is 
 c_i = (c_i1, ..., c_iK).
 ```
 
-## Current Progress
-
-The current code is not yet the final full model. The main progress so far is:
-
-- Implemented core Rcpp/Armadillo helper functions for matrix and field manipulation.
-- Implemented stable numerical utilities for inverse and Cholesky calculations.
-- Implemented a basic linear mixed-effects initializer, `init_LME()`.
-- Implemented a one-marker longitudinal/mark initializer, `init_LME2_one_marker()`, including the case where some subjects have no observations for a biomarker.
-- Implemented the first version of the multi-marker parameter structure, `MPP_para_t`.
-- Implemented `test_MPP_para_t_basic()` to check whether multi-marker parameters are correctly stored, stacked, and converted into block-diagonal covariance matrices.
-- Added `check.R` as a working script for manually testing helper functions and model components.
-
 ## Installation
 
-During development, the package can be loaded locally from the project folder:
-
-```r
-setwd("~/Documents/MPP")
-
-Rcpp::compileAttributes()
-devtools::clean_dll()
-devtools::load_all(reset = TRUE, recompile = TRUE)
-
-library(MPP)
-```
-
-After pushing the package to GitHub, it can be installed by:
+It can be installed by:
 
 ```r
 pak::pak("Morty486/MPP")
@@ -116,33 +92,7 @@ MPP parameter container
 
 ## Development Checks
 
-The current testing script, `check.R`, manually checks:
-
-- lower-triangular matrix conversion;
-- block-diagonal matrix construction;
-- inverse and Cholesky fallback behavior;
-- basic LME initialization on simulated toy data;
-- one-marker longitudinal initialization with irregular observation times;
-- one-marker initialization when more subjects have no biomarker observations;
-- construction of the multi-marker parameter structure.
+The current testing script, `check.R`, checks all the function mention before by
+using toy examples
 
 
-## Current Development Notes
-
-This package is under active development. The current code mainly prepares the computational infrastructure for the full model.
-
-Important next steps:
-
-1. Add a formal data structure for the full multi-marker marked point process model.
-2. Implement the one-marker measurement-time point process initializer for `a_ik`.
-3. Combine measurement-time random effects `a_ik` and mark/value random effects `b_ik` into the full `c_ik` update.
-4. Implement the full ELBO for the outcome, measurement-time process, and mark/value process.
-5. Add coordinate-ascent or L-BFGS updates for the full variational approximation.
-6. Replace manual checks in `check.R` with formal `testthat` unit tests.
-7. Add simulation examples and diagnostic plots after the full estimation routine is stable.
-
-One small cleanup item: make sure names used in `check.R` match the names returned by C++ functions. For example, the current C++ return names from `init_LME2_one_marker()` are `Sigma_bb_k`, `mu_b_ik`, and `S_bb_ik`.
-
-## Repository Status
-
-This repository currently represents a development checkpoint rather than a finished release. The main accomplishment is that the low-level Rcpp utilities and the first parameter-storage design for the multi-marker model are now in place. The next milestone is to connect these components into the full marked point process variational estimation algorithm.
