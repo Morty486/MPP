@@ -51,7 +51,7 @@ library(MPP)
 | Lower-triangular tools | `makeLowTriMat()`, `LowTriVec()` | Converts between lower-triangular matrices and vectorized Cholesky parameters. |
 | Block diagonal matrix | `Bdiag()` | Builds block-diagonal matrices from a list/field of matrices. |
 | Matrix inverse | `myinvCpp()`, `myinvCpp2()` | Tries symmetric inverse, general inverse, then pseudoinverse. |
-| Cholesky decomposition | `myCholCpp()`, `myCholCpp2()` | Computes lower Cholesky factor with fallback perturbation. |
+| Cholesky decomposition | `myCholCpp()`, `myCholCpp2()` | Computes lower Cholesky factor. |
 | Basic LME initializer | `init_LME()` | Initializes fixed effects, random-effect covariance, residual variance, and subject-level random effects. |
 | One-marker longitudinal initializer | `init_LME2_one_marker()` | Initializes one continuous biomarker/mark submodel and handles subjects with no observations. |
 | Multi-marker parameter container | `MPP_para_t` | Stores model parameters, builds full block covariance, and stacks subject-level variational parameters. |
