@@ -3,37 +3,6 @@
 An in-progress R/Rcpp package for developing a multi-marker marked point process joint model.
 
 
-
-## Project Goal
-
-The long-term goal is to implement a joint modeling framework for irregular EHR-type biomarker data. For subject `i` and biomarker `k`, the target model contains three linked parts:
-
-1. A measurement-time point process submodel
-
-```text
-log lambda_ik(s) = x_i^T alpha_k + psi_1k(s)^T theta_k + psi_2k(s)^T a_ik
-```
-
-2. A longitudinal mark/value submodel
-
-```text
-w_ik(s) = u_ik(s)^T delta_k + v_ik(s)^T b_ik + error
-```
-
-3. A binary outcome submodel linked through shared random effects
-
-```text
-logit P(Y_i = 1 | c_i) = z_i^T gamma
-                         + sum_k a_ik^T H_ik alpha_c,k
-                         + sum_k b_ik^T G_ik beta_c,k
-```
-
-where `c_ik = (a_ik, b_ik)` and the full subject-level random effects vector is stacked as
-
-```text
-c_i = (c_i1, ..., c_iK).
-```
-
 ## Installation
 
 It can be installed by:
