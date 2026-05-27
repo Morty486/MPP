@@ -128,7 +128,7 @@ arma::field<arma::vec> vec_to_field(const arma::vec& mu,
 
 
 
-// convert  field of vec  to vec
+// convert  field of vec
 arma::vec field_to_vec(const arma::field<arma::vec>& mu,
                        const arma::uvec& p_z_vec){
 
@@ -1613,3 +1613,70 @@ List test_MPP_MuZ_eval(const List& datalist,
 //   Z_i(i)      block-diagonal stack of all Z_ik over k
 //
 // ============================================================================
+
+
+
+// ============================================================================
+//                         DATA STRUCTURE INITIALIZATION
+// ============================================================================
+//
+//                                  |
+//                                  v
+//
+//                 ┌─────────────────────────────────────────────┐
+//                 │                                             │
+//                 v                                             v
+//
+//      ┌─────────────────────────────┐              ┌─────────────────────────────┐
+//      │        MPP_data_t            │              │        MPP_para_t            │
+//      │        Constructor           │              │        Constructor           │
+//      ├─────────────────────────────┤              ├─────────────────────────────┤
+//      │                             │              │                             │
+//      │ • Read outcome Y, Z, weights│              │ • Read beta_time, delta     │
+//      │ • Read K biomarkers         │              │ • Read sig2, gamma          │
+//      │                             │              │ • Read alpha_c, beta_c      │
+//      │ • Reshape n x K fields:     │              │ • Read Sigma_k              │
+//      │     W, Time                 │              │                             │
+//      │     U, Vdesign              │              │ • Read mu_ik, Z_ik          │
+//      │                             │              │ • Reshape mu_ik, Z_ik       │
+//      │ • Reshape point-process     │              │   into n x K fields         │
+//      │   design objects:           │              │                             │
+//      │     GQ_w_time               │              │ • Infer dimensions:         │
+//      │     X_T_time, Z_T_time      │              │     q_c = dim(Sigma_k)      │
+//      │     X_gq_time, Z_gq_time    │              │     q_b = ncol(Vdesign)     │
+//      │                             │              │     q_a = q_c - q_b         │
+//      │ • Store outcome connectors: │              │                             │
+//      │     H       : K-list        │              │ • Build full Sigma:         │
+//      │     G       : n x K field   │              │     Sigma = Bdiag(Sigma_k)  │
+//      │                             │              │     invSigma = Sigma^{-1}   │
+//      │ • Store GHQ_w, GHQ_t        │              │     Lmat = chol(invSigma)   │
+//      │                             │              │                             │
+//      │ Output: data object         │              │ • Stack variational params: │
+//      │                             │              │     mu_i = stack_k mu_ik    │
+//      │                             │              │     Z_i  = Bdiag_k Z_ik     │
+//      │                             │              │     Lvec_i = LowTriVec(chol)│
+//      │                             │              │                             │
+//      │                             │              │ Output: para object         │
+//      └─────────────────────────────┘              └─────────────────────────────┘
+//
+//                 │                                             │
+//                 └──────────────────────┬──────────────────────┘
+//                                        │
+//                                        v
+//
+//                     ┌─────────────────────────────────────┐
+//                     │     Ready for VLB / update step      │
+//                     ├─────────────────────────────────────┤
+//                     │                                     │
+//                     │ • test_model() checks construction   │
+//                     │ • test_MPP_MuZ_eval() checks one     │
+//                     │   subject's variational objective    │
+//                     │                                     │
+//                     │ Next target: update q_i(c_i)         │
+//                     │   q_i(c_i) = N(mu_i, Z_i)            │
+//                     │                                     │
+//                     └─────────────────────────────────────┘
+//
+// ============================================================================
+
+
