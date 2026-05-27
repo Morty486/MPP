@@ -29,45 +29,8 @@ library(MPP)
 
 ## Current Data Flow
 
-```text
-R objects
-  |
-  |-- lists of vectors/matrices
-  |-- weights
-  |-- design matrices
-  |
-  v
-Rcpp / Armadillo objects
-  |
-  |-- arma::vec
-  |-- arma::mat
-  |-- arma::field<arma::vec>
-  |-- arma::field<arma::mat>
-  |
-  v
-Initialization modules
-  |
-  |-- init_LME()
-  |-- init_LME2_one_marker()
-  |
-  v
-MPP parameter container
-  |
-  |-- biomarker-specific parameters
-  |-- block-diagonal Sigma
-  |-- inverse Sigma
-  |-- stacked mu_i and Z_i
-```
-
-## Development Checks
-
-The current testing script, `check.R`, checks all the function mention before by
-using toy examples
-
 
 ```text
-
-
 // ============================================================================
 //                         INPUT STRUCTURE (from R)
 // ============================================================================
@@ -257,3 +220,10 @@ using toy examples
 //
 // ============================================================================
 ```
+
+
+## Development Checks
+
+The current testing script, `check.R`, checks all the function mention before by
+using toy examples
+
