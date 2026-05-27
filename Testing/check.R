@@ -512,7 +512,10 @@ length(out$mu_i[[1]])
 dim(out$Z_i[[1]])
 length(out$Lvec_i[[1]])
 
-
+# New dimension checks
+out$q_a_vec
+out$q_b_vec
+out$q_c_vec
 
 
 ##############
@@ -583,12 +586,25 @@ toy_long <- toy_long %>%
     time = (hour * 60 + minute) / (48 * 60)
   )
 
+
+
+
+
 # -----------------------------
 # 5. Build nested objects
 # -----------------------------
 subjects <- toy_base$subject_num
 K <- length(toy_codes)
 n <- length(subjects)
+
+# Put these dimensions BEFORE building U and Vdesign
+q_a <- 2
+q_b <- 2
+q_c <- q_a + q_b
+
+p_time <- 2
+p_delta <- 2
+p_gamma <- ncol(Z)
 
 W <- vector("list", n)
 Time_list <- vector("list", n)
@@ -616,10 +632,21 @@ for (i in seq_len(n)) {
     W[[i]][[k]] <- wvec
     Time_list[[i]][[k]] <- tvec
 
-    U[[i]][[k]] <- cbind(1, tvec)
-    Vdesign[[i]][[k]] <- cbind(1, tvec)
+    if (length(tvec) > 0) {
+
+      U[[i]][[k]] <- cbind(1, tvec)
+      Vdesign[[i]][[k]] <- cbind(1, tvec)
+
+    } else {
+
+      # Important:
+      # empty matrix, but keep correct number of columns
+      U[[i]][[k]] <- matrix(numeric(0), nrow = 0, ncol = p_delta)
+      Vdesign[[i]][[k]] <- matrix(numeric(0), nrow = 0, ncol = q_b)
+    }
   }
 }
+
 
 # -----------------------------
 # 6. Baseline outcome/covariates
@@ -637,9 +664,98 @@ Z <- as.matrix(
 
 weights <- rep(1, n)
 
+
+
+
+
+
 # -----------------------------
-# 7. Final datalist
+# 7. Extra objects required by new MPP_data_t
 # -----------------------------
+
+
+
+# Simple midpoint quadrature over [0, 1]
+n_gq <- 10
+gq_t <- seq(0.05, 0.95, length.out = n_gq)
+gq_w <- rep(1 / n_gq, n_gq)
+
+# Nested objects: n x K
+GQ_w_time <- vector("list", n)
+X_T_time <- vector("list", n)
+Z_T_time <- vector("list", n)
+X_gq_time <- vector("list", n)
+Z_gq_time <- vector("list", n)
+G <- vector("list", n)
+
+for (i in seq_len(n)) {
+
+  GQ_w_time[[i]] <- vector("list", K)
+  X_T_time[[i]] <- vector("list", K)
+  Z_T_time[[i]] <- vector("list", K)
+  X_gq_time[[i]] <- vector("list", K)
+  Z_gq_time[[i]] <- vector("list", K)
+  G[[i]] <- vector("list", K)
+
+  for (k in seq_len(K)) {
+
+    tvec <- Time_list[[i]][[k]]
+
+    # Design at observed event times
+    if (length(tvec) > 0) {
+      X_obs <- cbind(1, tvec)
+      Z_obs <- cbind(1, tvec)
+
+      X_T_time[[i]][[k]] <- colSums(X_obs)
+      Z_T_time[[i]][[k]] <- colSums(Z_obs)
+
+    } else {
+      # Important: do NOT use numeric(0)
+      # These must have the right dimensions
+      X_T_time[[i]][[k]] <- rep(0, p_time)
+      Z_T_time[[i]][[k]] <- rep(0, q_a)
+    }
+
+    # Design at quadrature nodes
+    X_gq_time[[i]][[k]] <- cbind(1, gq_t)
+    Z_gq_time[[i]][[k]] <- cbind(1, gq_t)
+    GQ_w_time[[i]][[k]] <- gq_w
+
+    # G_ik maps beta_c,k to b_ik dimension
+    # For toy code, use identity
+    G[[i]][[k]] <- diag(q_b)
+  }
+}
+
+# H_k maps alpha_c,k to a_ik dimension
+# For toy code, use identity
+H <- vector("list", K)
+for (k in seq_len(K)) {
+  H[[k]] <- diag(q_a)
+}
+
+# Gauss-Hermite quadrature nodes/weights
+# 5-point physicists' Hermite rule, weights normalized by sqrt(pi)
+GHQ_t <- c(
+  -2.0201828704560856,
+  -0.9585724646138185,
+  0,
+  0.9585724646138185,
+  2.0201828704560856
+)
+
+GHQ_w <- c(
+  0.01995324205904591,
+  0.3936193231522412,
+  0.9453087204829419,
+  0.3936193231522412,
+  0.01995324205904591
+) / sqrt(pi)
+
+# -----------------------------
+# 8. Final datalist
+# -----------------------------
+
 toy_datalist <- list(
   n = n,
   K = K,
@@ -652,23 +768,33 @@ toy_datalist <- list(
   W = W,
   Time = Time_list,
   U = U,
-  Vdesign = Vdesign
+  Vdesign = Vdesign,
+
+  GQ_w_time = GQ_w_time,
+  X_T_time = X_T_time,
+  Z_T_time = Z_T_time,
+  X_gq_time = X_gq_time,
+  Z_gq_time = Z_gq_time,
+
+  H = H,
+  G = G,
+
+  GHQ_w = GHQ_w,
+  GHQ_t = GHQ_t
 )
 
+# -----------------------------
+# 9. Flatten n x K nested lists for C++
+# -----------------------------
 
-
-# flatten nested list into 1D list
 flatten_ik <- function(x, n, K) {
 
   out <- vector("list", n * K)
-
   iter <- 1
 
   for (i in seq_len(n)) {
     for (k in seq_len(K)) {
-
       out[[iter]] <- x[[i]][[k]]
-
       iter <- iter + 1
     }
   }
@@ -690,22 +816,29 @@ toy_datalist_cpp$U <-
 toy_datalist_cpp$Vdesign <-
   flatten_ik(toy_datalist$Vdesign, n, K)
 
-str(toy_datalist_cpp$W)
+toy_datalist_cpp$GQ_w_time <-
+  flatten_ik(toy_datalist$GQ_w_time, n, K)
 
+toy_datalist_cpp$X_T_time <-
+  flatten_ik(toy_datalist$X_T_time, n, K)
+
+toy_datalist_cpp$Z_T_time <-
+  flatten_ik(toy_datalist$Z_T_time, n, K)
+
+toy_datalist_cpp$X_gq_time <-
+  flatten_ik(toy_datalist$X_gq_time, n, K)
+
+toy_datalist_cpp$Z_gq_time <-
+  flatten_ik(toy_datalist$Z_gq_time, n, K)
+
+toy_datalist_cpp$G <-
+  flatten_ik(toy_datalist$G, n, K)
 
 
 
 # -----------------------------
-# 8. Create toy parameter list
+# 10. Create toy parameter list
 # -----------------------------
-
-# dimensions
-q_a <- 2   # a_ik: random intercept + slope for measurement-time model
-q_b <- 2   # b_ik: random intercept + slope for mark/value model
-q_c <- q_a + q_b
-
-p_delta <- 2   # fixed effects in mark model: intercept + time
-p_gamma <- ncol(Z)
 
 beta_time <- vector("list", K)
 delta <- vector("list", K)
@@ -718,27 +851,26 @@ Sigma_k <- vector("list", K)
 
 for (k in seq_len(K)) {
 
-  # fixed effects in time process
-  # just toy values
+  # fixed effects in measurement-time process
+  # must match ncol(X_gq_time[[i]][[k]])
   beta_time[[k]] <- c(0.1, 0.2)
 
-  # fixed effects in mark/value model
+  # fixed effects in mark/value process
+  # must match ncol(U[[i]][[k]])
   delta[[k]] <- c(1.0, 0.5)
 
-  # residual variance for mark/value model
   sig2[k] <- 1.0
 
-  # outcome coefficients for a_ik and b_ik effects
-  alpha_c[[k]] <- c(0.1, 0.1)
-  beta_c[[k]]  <- c(0.1, 0.1)
+  # must match ncol(H[[k]]) and ncol(G[[i]][[k]])
+  alpha_c[[k]] <- rep(0.1, q_a)
+  beta_c[[k]]  <- rep(0.1, q_b)
 
   # covariance for c_ik = (a_ik, b_ik)
   Sigma_k[[k]] <- diag(q_c)
 }
 
-gamma <- rep(0, p_gamma)
 
-# variational parameters mu_ik and Z_ik
+# Variational parameters
 mu_ik_nested <- vector("list", n)
 Z_ik_nested <- vector("list", n)
 
@@ -748,7 +880,6 @@ for (i in seq_len(n)) {
   Z_ik_nested[[i]] <- vector("list", K)
 
   for (k in seq_len(K)) {
-
     mu_ik_nested[[i]][[k]] <- rep(0, q_c)
     Z_ik_nested[[i]][[k]] <- diag(q_c)
   }
@@ -769,13 +900,64 @@ toy_paralist <- list(
   Z_ik = Z_ik
 )
 
+# Basic constructor check
+
+out_model <- test_model(toy_datalist_cpp, toy_paralist)
+
+out_model$q_a_vec
+out_model$q_b_vec
+out_model$q_c_vec
 
 
-test_model(toy_datalist_cpp, toy_paralist)
+
+##############
+##### 9 ######
+##############
+
+# Test one-subject variational objective and gradient
+
+out_muz_1 <- test_MPP_MuZ_eval(
+  datalist = toy_datalist_cpp,
+  paralist = toy_paralist,
+  i_R = 1
+)
 
 
 
 
+names(out_muz_1)
+
+out_muz_1$fval
+out_muz_1$gradient_norm
+
+out_muz_1$q_a_vec
+out_muz_1$q_b_vec
+out_muz_1$q_c_vec
+
+out_muz_1$mu_i
+out_muz_1$Z_i
+
+dim(out_muz_1$gradient)
+length(out_muz_1$muZ)
+
+# Try all subjects
+out_muz_all <- lapply(seq_len(n), function(i) {
+  test_MPP_MuZ_eval(
+    datalist = toy_datalist_cpp,
+    paralist = toy_paralist,
+    i_R = i
+  )
+})
+
+sapply(out_muz_all, function(x) x$fval)
+sapply(out_muz_all, function(x) x$gradient_norm)
 
 
+out_muz_1$fval
+
+out_muz_1$gradient_norm
+
+out_muz_1$q_a_vec
+out_muz_1$q_b_vec
+out_muz_1$q_c_vec
 

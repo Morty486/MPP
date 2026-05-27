@@ -155,6 +155,19 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// test_MPP_MuZ_eval
+List test_MPP_MuZ_eval(const List& datalist, const List& paralist, int i_R);
+RcppExport SEXP _MPP_test_MPP_MuZ_eval(SEXP datalistSEXP, SEXP paralistSEXP, SEXP i_RSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const List& >::type datalist(datalistSEXP);
+    Rcpp::traits::input_parameter< const List& >::type paralist(paralistSEXP);
+    Rcpp::traits::input_parameter< int >::type i_R(i_RSEXP);
+    rcpp_result_gen = Rcpp::wrap(test_MPP_MuZ_eval(datalist, paralist, i_R));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_MPP_my_trunc", (DL_FUNC) &_MPP_my_trunc, 1},
@@ -169,6 +182,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_MPP_init_LME2_one_marker", (DL_FUNC) &_MPP_init_LME2_one_marker, 7},
     {"_MPP_test_MPP_para_t_basic", (DL_FUNC) &_MPP_test_MPP_para_t_basic, 0},
     {"_MPP_test_model", (DL_FUNC) &_MPP_test_model, 2},
+    {"_MPP_test_MPP_MuZ_eval", (DL_FUNC) &_MPP_test_MPP_MuZ_eval, 3},
     {NULL, NULL, 0}
 };
 

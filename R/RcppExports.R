@@ -49,3 +49,7 @@ test_model <- function(datalist, paralist) {
     .Call(`_MPP_test_model`, datalist, paralist)
 }
 
+test_MPP_MuZ_eval <- function(datalist, paralist, i_R = 1L) {
+    .Call(`_MPP_test_MPP_MuZ_eval`, datalist, paralist, i_R)
+}
+

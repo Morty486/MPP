@@ -569,14 +569,43 @@ struct MPP_data_t {
   int K;
   int p_zz;
 
+  // -----------------------------
+  // Binary outcome data
+  // -----------------------------
   arma::vec Y;
   arma::mat Z;
   arma::vec weights;
 
+  // -----------------------------
+  // Mark/value longitudinal data
+  // -----------------------------
   arma::field<arma::vec> W;        // n x K
   arma::field<arma::vec> Time;     // n x K
   arma::field<arma::mat> U;        // n x K
   arma::field<arma::mat> Vdesign;  // n x K
+
+  // -----------------------------
+  // Measurement-time point-process design
+  // -----------------------------
+  arma::field<arma::vec> GQ_w_time;   // n x K
+  arma::field<arma::vec> X_T_time;    // n x K
+  arma::field<arma::vec> Z_T_time;    // n x K
+  arma::field<arma::mat> X_gq_time;   // n x K
+  arma::field<arma::mat> Z_gq_time;   // n x K
+
+  // -----------------------------
+  // Binary outcome connector matrices
+  // eta_i = z_i^T gamma + sum_k a_ik^T H_k alpha_c,k
+  //       + sum_k b_ik^T G_ik beta_c,k
+  // -----------------------------
+  arma::field<arma::mat> H;           // K x 1
+  arma::field<arma::mat> G;           // n x K
+
+  // -----------------------------
+  // Gauss-Hermite quadrature for binary outcome expectation
+  // -----------------------------
+  arma::vec GHQ_w;
+  arma::vec GHQ_t;
 
   MPP_data_t(const List& datalist) {
 
@@ -588,13 +617,21 @@ struct MPP_data_t {
     p_zz = Z.n_cols;
     K = as<int>(datalist["K"]);
 
-    // R nested list -> temporary field
-    arma::field<arma::vec> W_tmp = datalist["W"];
-    arma::field<arma::vec> Time_tmp = datalist["Time"];
-    arma::field<arma::mat> U_tmp = datalist["U"];
-    arma::field<arma::mat> V_tmp = datalist["Vdesign"];
+    // -----------------------------
+    // Basic mark/value objects
+    // -----------------------------
+    arma::field<arma::vec> W_tmp =
+      as<arma::field<arma::vec>>(datalist["W"]);
 
-    // store as n x K field
+    arma::field<arma::vec> Time_tmp =
+      as<arma::field<arma::vec>>(datalist["Time"]);
+
+    arma::field<arma::mat> U_tmp =
+      as<arma::field<arma::mat>>(datalist["U"]);
+
+    arma::field<arma::mat> V_tmp =
+      as<arma::field<arma::mat>>(datalist["Vdesign"]);
+
     W = arma::field<arma::vec>(n, K);
     Time = arma::field<arma::vec>(n, K);
     U = arma::field<arma::mat>(n, K);
@@ -603,13 +640,80 @@ struct MPP_data_t {
     int iter = 0;
     for (int i = 0; i < n; i++) {
       for (int k = 0; k < K; k++) {
-        W(i,k) = W_tmp(iter);
-        Time(i,k) = Time_tmp(iter);
-        U(i,k) = U_tmp(iter);
-        Vdesign(i,k) = V_tmp(iter);
+        W(i, k) = W_tmp(iter);
+        Time(i, k) = Time_tmp(iter);
+        U(i, k) = U_tmp(iter);
+        Vdesign(i, k) = V_tmp(iter);
         iter++;
       }
     }
+
+    // -----------------------------
+    // Measurement-time point-process objects
+    // -----------------------------
+    arma::field<arma::vec> GQ_w_time_tmp =
+      as<arma::field<arma::vec>>(datalist["GQ_w_time"]);
+
+    arma::field<arma::vec> X_T_time_tmp =
+      as<arma::field<arma::vec>>(datalist["X_T_time"]);
+
+    arma::field<arma::vec> Z_T_time_tmp =
+      as<arma::field<arma::vec>>(datalist["Z_T_time"]);
+
+    arma::field<arma::mat> X_gq_time_tmp =
+      as<arma::field<arma::mat>>(datalist["X_gq_time"]);
+
+    arma::field<arma::mat> Z_gq_time_tmp =
+      as<arma::field<arma::mat>>(datalist["Z_gq_time"]);
+
+    GQ_w_time = arma::field<arma::vec>(n, K);
+    X_T_time  = arma::field<arma::vec>(n, K);
+    Z_T_time  = arma::field<arma::vec>(n, K);
+    X_gq_time = arma::field<arma::mat>(n, K);
+    Z_gq_time = arma::field<arma::mat>(n, K);
+
+    iter = 0;
+    for (int i = 0; i < n; i++) {
+      for (int k = 0; k < K; k++) {
+        GQ_w_time(i, k) = GQ_w_time_tmp(iter);
+        X_T_time(i, k)  = X_T_time_tmp(iter);
+        Z_T_time(i, k)  = Z_T_time_tmp(iter);
+        X_gq_time(i, k) = X_gq_time_tmp(iter);
+        Z_gq_time(i, k) = Z_gq_time_tmp(iter);
+        iter++;
+      }
+    }
+
+    // -----------------------------
+    // Outcome connector matrices
+    // -----------------------------
+    arma::field<arma::mat> H_tmp =
+      as<arma::field<arma::mat>>(datalist["H"]);
+
+    H = arma::field<arma::mat>(K);
+
+    for (int k = 0; k < K; k++) {
+      H(k) = H_tmp(k);
+    }
+
+    arma::field<arma::mat> G_tmp =
+      as<arma::field<arma::mat>>(datalist["G"]);
+
+    G = arma::field<arma::mat>(n, K);
+
+    iter = 0;
+    for (int i = 0; i < n; i++) {
+      for (int k = 0; k < K; k++) {
+        G(i, k) = G_tmp(iter);
+        iter++;
+      }
+    }
+
+    // -----------------------------
+    // Gauss-Hermite quadrature
+    // -----------------------------
+    GHQ_w = as<arma::vec>(datalist["GHQ_w"]);
+    GHQ_t = as<arma::vec>(datalist["GHQ_t"]);
   }
 };
 
@@ -685,11 +789,15 @@ struct MPP_para_t {
   arma::field<arma::vec> mu_ik;  // n x K, each = (mu_a_ik, mu_b_ik)
   arma::field<arma::mat> Z_ik;   // n x K, each block for c_ik
 
+
+
   // -----------------------------
   // Constructor
   // -----------------------------
   MPP_para_t(const int n_,
              const int K_,
+             const arma::uvec& q_a_vec_,
+             const arma::uvec& q_b_vec_,
              const arma::field<arma::vec>& beta_time_,
              const arma::field<arma::vec>& delta_,
              const arma::vec& sig2_,
@@ -702,6 +810,8 @@ struct MPP_para_t {
     :
     n(n_),
     K(K_),
+    q_a_vec(q_a_vec_),
+    q_b_vec(q_b_vec_),
     beta_time(beta_time_),
     delta(delta_),
     sig2(sig2_),
@@ -712,15 +822,12 @@ struct MPP_para_t {
     mu_ik(mu_ik_),
     Z_ik(Z_ik_)
   {
-    // construct dimensions
-    q_a_vec = arma::uvec(K);
-    q_b_vec = arma::uvec(K);
-    q_c_vec = arma::uvec(K);
+    q_c_vec = q_a_vec + q_b_vec;
 
     for (int k = 0; k < K; k++) {
-      q_c_vec(k) = Sigma_k(k).n_rows;
-      // q_a_vec and q_b_vec should usually be passed from data,
-      // but can also be stored separately.
+      if (Sigma_k(k).n_rows != q_c_vec(k)) {
+        Rcpp::stop("Sigma_k dimension does not match q_a_vec + q_b_vec.");
+      }
     }
 
     // build full Sigma = blockdiag(Sigma_1, ..., Sigma_K)
@@ -801,12 +908,40 @@ struct MPP_para_t {
       }
     }
 
+
     q_a_vec = arma::uvec(K);
     q_b_vec = arma::uvec(K);
     q_c_vec = arma::uvec(K);
 
     for (int k = 0; k < K; k++) {
-      q_c_vec(k) = Sigma_k(k).n_rows;
+
+      int qc = static_cast<int>(Sigma_k(k).n_rows);
+      int qb = static_cast<int>(data.Vdesign(0, k).n_cols);
+
+      if (qc <= 0) {
+        Rcpp::stop("Sigma_k(k) has zero dimension.");
+      }
+
+      if (qb <= 0) {
+        Rcpp::stop("q_b_vec(k) must be positive. Check Vdesign.");
+      }
+
+      if (qb >= qc) {
+        Rcpp::stop("Need q_c_vec(k) > q_b_vec(k), so q_a_vec(k) is positive.");
+      }
+
+      q_c_vec(k) = qc;
+      q_b_vec(k) = qb;
+      q_a_vec(k) = qc - qb;
+
+      if (mu_ik(0, k).n_elem != q_c_vec(k)) {
+        Rcpp::stop("mu_ik dimension does not match Sigma_k.");
+      }
+
+      if (Z_ik(0, k).n_rows != q_c_vec(k) ||
+          Z_ik(0, k).n_cols != q_c_vec(k)) {
+        Rcpp::stop("Z_ik dimension does not match Sigma_k.");
+      }
     }
 
     Sigma = Bdiag(Sigma_k);
@@ -922,9 +1057,14 @@ List test_MPP_para_t_basic() {
   // 4. Construct the new MPP_para_t struct
   // -----------------------------
 
+  arma::uvec q_a_vec = {1, 1};
+  arma::uvec q_b_vec = {1, 1};
+
   MPP_para_t para(
       n,
       K,
+      q_a_vec,
+      q_b_vec,
       beta_time,
       delta,
       sig2,
@@ -990,6 +1130,10 @@ List test_model(const List& datalist,
     _["n"] = data.n,
     _["K"] = data.K,
 
+    _["q_a_vec"] = para.q_a_vec,
+    _["q_b_vec"] = para.q_b_vec,
+    _["q_c_vec"] = para.q_c_vec,
+
     _["Y"] = data.Y,
     _["weights"] = data.weights,
 
@@ -1004,5 +1148,342 @@ List test_model(const List& datalist,
 
     _["W_1_1"] = data.W(0,0),
     _["Time_1_1"] = data.Time(0,0)
+  );
+}
+
+
+
+
+int c_start_index(const MPP_para_t& para, int k) {
+  int start = 0;
+  for (int kk = 0; kk < k; kk++) {
+    start += para.q_c_vec(kk);
+  }
+  return start;
+}
+
+arma::vec get_mu_a_ik(const MPP_para_t& para, int i, int k) {
+  int start = c_start_index(para, k);
+  int qa = para.q_a_vec(k);
+  return para.mu_i(i).subvec(start, start + qa - 1);
+}
+
+arma::vec get_mu_b_ik(const MPP_para_t& para, int i, int k) {
+  int start = c_start_index(para, k);
+  int qa = para.q_a_vec(k);
+  int qb = para.q_b_vec(k);
+  return para.mu_i(i).subvec(start + qa, start + qa + qb - 1);
+}
+
+arma::mat get_Z_aa_ik(const MPP_para_t& para, int i, int k) {
+  int start = c_start_index(para, k);
+  int qa = para.q_a_vec(k);
+  return para.Z_i(i).submat(start, start, start + qa - 1, start + qa - 1);
+}
+
+arma::mat get_Z_bb_ik(const MPP_para_t& para, int i, int k) {
+  int start = c_start_index(para, k);
+  int qa = para.q_a_vec(k);
+  int qb = para.q_b_vec(k);
+  return para.Z_i(i).submat(start + qa, start + qa,
+                  start + qa + qb - 1, start + qa + qb - 1);
+}
+
+
+arma::vec combineMuZ_MPP(const MPP_para_t& para, int i) {
+  return arma::join_cols(para.mu_i(i), para.Lvec_i(i));
+}
+
+void storeMuZ_MPP(const arma::vec& muZ,
+                  MPP_para_t& para,
+                  int i) {
+
+  int q = para.mu_i(i).n_elem;
+
+  arma::vec mu = muZ.subvec(0, q - 1);
+  arma::vec Lvec = muZ.subvec(q, muZ.n_elem - 1);
+
+  arma::mat L = makeLowTriMat(para.Z_i(i), Lvec);
+  arma::mat Z = L * L.t();
+
+  para.mu_i(i) = mu;
+  para.Z_i(i) = Z;
+  para.Lvec_i(i) = Lvec;
+
+  // Update biomarker-specific blocks
+  int start = 0;
+  for (int k = 0; k < para.K; k++) {
+    int qc = para.q_c_vec(k);
+    para.mu_ik(i, k) = mu.subvec(start, start + qc - 1);
+    para.Z_ik(i, k) = Z.submat(start, start,
+              start + qc - 1, start + qc - 1);
+    start += qc;
+  }
+}
+
+class MPP_update_MuZ_Fun {
+public:
+  const MPP_data_t& data;
+  MPP_para_t& para;
+  int i_now;
+
+  MPP_update_MuZ_Fun(const MPP_data_t& data,
+                     MPP_para_t& para)
+    : data(data), para(para) {
+    i_now = 0;
+  }
+
+  double EvaluateWithGradient(const arma::mat& muZ_mat,
+                              arma::mat& g) {
+
+    arma::vec muZ = muZ_mat.col(0);
+    storeMuZ_MPP(muZ, para, i_now);
+
+    int i = i_now;
+    int q = para.mu_i(i).n_elem;
+
+    arma::vec mu = para.mu_i(i);
+    arma::mat Z = para.Z_i(i);
+    arma::mat L = makeLowTriMat(Z, para.Lvec_i(i));
+
+    double fval = 0.0;
+
+    arma::vec grad_mu(q, arma::fill::zeros);
+    arma::mat grad_L(q, q, arma::fill::zeros);
+
+    double wi = data.weights(i);
+
+    // -----------------------------
+    // 1. Binary outcome contribution
+    // -----------------------------
+
+    arma::vec m_i(q, arma::fill::zeros);
+
+    int start = 0;
+    for (int k = 0; k < para.K; k++) {
+
+      int qa = para.q_a_vec(k);
+      int qb = para.q_b_vec(k);
+      int qc = para.q_c_vec(k);
+
+      arma::vec m_a = data.H(k) * para.alpha_c(k);
+      arma::vec m_b = data.G(i, k) * para.beta_c(k);
+
+      m_i.subvec(start, start + qa - 1) = m_a;
+      m_i.subvec(start + qa, start + qc - 1) = m_b;
+
+      start += qc;
+    }
+
+    double eta_mean = arma::as_scalar(data.Z.row(i) * para.gamma) +
+      arma::as_scalar(mu.t() * m_i);
+
+    double eta_var = arma::as_scalar(m_i.t() * Z * m_i);
+
+    eta_mean = my_trunc(eta_mean);
+
+    arma::vec eta_quad;
+
+    if (eta_var > 1e-12) {
+      double eta_sd_scaled = std::sqrt(2.0 * eta_var);
+      eta_quad = eta_mean + eta_sd_scaled * data.GHQ_t;
+    } else {
+      eta_quad = arma::vec(data.GHQ_t.n_elem);
+      eta_quad.fill(eta_mean);
+    }
+
+    eta_quad = arma::clamp(eta_quad, -MAX_EXP, MAX_EXP);
+
+    arma::vec exp_eta = arma::exp(eta_quad);
+    arma::vec pi_quad = exp_eta / (1.0 + exp_eta);
+
+    double E_log1pexp = arma::accu(data.GHQ_w % arma::log(1.0 + exp_eta));
+    double E_pi = arma::accu(data.GHQ_w % pi_quad);
+
+    fval += wi * (data.Y(i) * eta_mean - E_log1pexp);
+
+    grad_mu += wi * (data.Y(i) - E_pi) * m_i;
+
+    if (eta_var > 1e-12) {
+      double eta_sd_scaled = std::sqrt(2.0 * eta_var);
+      double A = arma::accu(data.GHQ_w % pi_quad % data.GHQ_t);
+
+      grad_L -= wi * (2.0 / eta_sd_scaled) * A *
+        (m_i * m_i.t() * L);
+    }
+
+    // -----------------------------
+    // 2. Measurement-time + mark/value contributions
+    // -----------------------------
+
+    start = 0;
+
+    for (int k = 0; k < para.K; k++) {
+
+      int qa = para.q_a_vec(k);
+      int qb = para.q_b_vec(k);
+      int qc = para.q_c_vec(k);
+
+      arma::vec mu_a = mu.subvec(start, start + qa - 1);
+      arma::vec mu_b = mu.subvec(start + qa, start + qc - 1);
+
+      arma::mat Z_aa = Z.submat(start, start,
+                                start + qa - 1, start + qa - 1);
+
+      // ------------------------------------------------
+      // 2a. Measurement-time point-process part
+      // ------------------------------------------------
+
+      arma::vec h = data.X_gq_time(i, k) * para.beta_time(k) +
+        data.Z_gq_time(i, k) * mu_a;
+
+      for (int r = 0; r < h.n_elem; r++) {
+        h(r) += 0.5 * arma::as_scalar(
+          data.Z_gq_time(i, k).row(r) *
+            Z_aa *
+            data.Z_gq_time(i, k).row(r).t()
+        );
+      }
+
+      h = arma::clamp(h, -MAX_EXP, MAX_EXP);
+      h = arma::exp(h);
+
+      fval += wi * (
+        arma::accu(data.X_T_time(i, k) % para.beta_time(k)) +
+          arma::accu(data.Z_T_time(i, k) % mu_a) -
+          arma::accu(data.GQ_w_time(i, k) % h)
+      );
+
+      arma::vec grad_mu_a =
+        data.Z_T_time(i, k) -
+        data.Z_gq_time(i, k).t() *
+        (data.GQ_w_time(i, k) % h);
+
+      grad_mu.subvec(start, start + qa - 1) += wi * grad_mu_a;
+
+      arma::mat A_time =
+        data.Z_gq_time(i, k).t() *
+        arma::diagmat(data.GQ_w_time(i, k) % h) *
+        data.Z_gq_time(i, k);
+
+      arma::mat A_full(q, q, arma::fill::zeros);
+      A_full.submat(start, start,
+                    start + qa - 1, start + qa - 1) = A_time;
+
+      grad_L -= wi * A_full * L;
+
+      // ------------------------------------------------
+      // 2b. Mark/value Gaussian longitudinal part
+      // ------------------------------------------------
+
+      int m_obs = data.W(i, k).n_elem;
+
+      if (m_obs > 0) {
+
+        arma::vec resid =
+          data.W(i, k) -
+          data.U(i, k) * para.delta(k) -
+          data.Vdesign(i, k) * mu_b;
+
+        arma::mat Z_bb = Z.submat(start + qa, start + qa,
+                                  start + qc - 1, start + qc - 1);
+
+        double sig2_k = para.sig2(k);
+
+        fval += wi * (
+          -0.5 * m_obs * std::log(sig2_k)
+          -0.5 / sig2_k * (
+              arma::accu(arma::square(resid)) +
+              arma::trace(data.Vdesign(i, k) * Z_bb *
+              data.Vdesign(i, k).t())
+          )
+        );
+
+        arma::vec grad_mu_b =
+          data.Vdesign(i, k).t() * resid / sig2_k;
+
+        grad_mu.subvec(start + qa, start + qc - 1) += wi * grad_mu_b;
+
+        arma::mat A_mark =
+          data.Vdesign(i, k).t() *
+          data.Vdesign(i, k) / sig2_k;
+
+        arma::mat A_mark_full(q, q, arma::fill::zeros);
+        A_mark_full.submat(start + qa, start + qa,
+                           start + qc - 1, start + qc - 1) = A_mark;
+
+        grad_L -= wi * A_mark_full * L;
+      }
+
+      start += qc;
+    }
+
+    // -----------------------------
+    // 3. Prior term
+    // -----------------------------
+
+    fval += wi * (
+      -0.5 * arma::as_scalar(mu.t() * para.invSigma * mu)
+      -0.5 * arma::trace(para.invSigma * Z)
+    );
+
+    grad_mu -= wi * para.invSigma * mu;
+    grad_L  -= wi * para.invSigma * L;
+
+    // -----------------------------
+    // 4. Entropy term
+    // -----------------------------
+
+    double logdet_Z, sign;
+    arma::log_det(logdet_Z, sign, Z);
+
+    fval += wi * 0.5 * logdet_Z;
+
+    grad_L += wi * arma::trans(arma::inv(arma::trimatl(L)));
+
+    // -----------------------------
+    // 5. Turn maximization into minimization
+    // -----------------------------
+
+    fval = -fval;
+
+    arma::vec grad_all = arma::join_cols(grad_mu, LowTriVec(grad_L));
+    g.col(0) = -grad_all;
+
+    return fval;
+  }
+};
+
+
+// [[Rcpp::export]]
+List test_MPP_MuZ_eval(const List& datalist,
+                       const List& paralist,
+                       int i_R = 1) {
+
+  MPP_data_t data(datalist);
+  MPP_para_t para(paralist, data);
+
+  int i = i_R - 1;
+
+  MPP_update_MuZ_Fun fun(data, para);
+  fun.i_now = i;
+
+  arma::vec muZ = combineMuZ_MPP(para, i);
+  arma::mat muZ_mat = muZ;
+
+  arma::mat g(muZ.n_elem, 1, arma::fill::zeros);
+
+  double fval = fun.EvaluateWithGradient(muZ_mat, g);
+
+  return List::create(
+    _["fval"] = fval,
+    _["gradient"] = g,
+    _["gradient_norm"] = arma::norm(g),
+    _["muZ"] = muZ,
+    _["mu_i"] = para.mu_i(i),
+    _["Z_i"] = para.Z_i(i),
+    _["q_a_vec"] = para.q_a_vec,
+    _["q_b_vec"] = para.q_b_vec,
+    _["q_c_vec"] = para.q_c_vec
   );
 }
