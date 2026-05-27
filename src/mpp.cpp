@@ -1487,3 +1487,129 @@ List test_MPP_MuZ_eval(const List& datalist,
     _["q_c_vec"] = para.q_c_vec
   );
 }
+
+
+
+// ============================================================================
+//                         INPUT STRUCTURE (from R)
+// ============================================================================
+//
+//                                  |
+//                                  v
+//
+// ┌────────────────────────────────────────────────────────────────────────────┐
+// │                         datalist (List)                                    │
+// ├────────────────────────────────────────────────────────────────────────────┤
+// │                                                                            │
+// │  Basic outcome/covariate data                                              │
+// │  ├── Y              [n x 1 binary outcome]                                  │
+// │  ├── weights        [n x 1 sampling weights]                                │
+// │  ├── Z              [n x p_zz baseline covariates for outcome model]        │
+// │  └── K              [number of biomarkers / longitudinal variables]         │
+// │                                                                            │
+// │  Mark/value longitudinal data: n x K flattened list                         │
+// │  ├── W              [observed biomarker values w_ik]                        │
+// │  ├── Time           [observed measurement times t_ijk]                      │
+// │  ├── U              [fixed-effect design matrices U_ik for mark model]      │
+// │  └── Vdesign        [random-effect design matrices V_ik for b_ik]           │
+// │                                                                            │
+// │  Measurement-time point-process design: n x K flattened list                │
+// │  ├── GQ_w_time      [Gauss quadrature weights for ∫ lambda_ik(s) ds]         │
+// │  ├── X_T_time       [sum of fixed-effect design at observed event times]    │
+// │  ├── Z_T_time       [sum of a_ik random-effect design at observed times]    │
+// │  ├── X_gq_time      [fixed-effect design at quadrature nodes]               │
+// │  └── Z_gq_time      [a_ik random-effect design at quadrature nodes]         │
+// │                                                                            │
+// │  Outcome connector matrices                                                 │
+// │  ├── H              [K-list; H_k links a_ik to outcome]                     │
+// │  └── G              [n x K flattened list; G_ik links b_ik to outcome]      │
+// │                                                                            │
+// │  Gaussian-Hermite quadrature for binary outcome expectation                 │
+// │  ├── GHQ_w          [Gauss-Hermite weights]                                 │
+// │  └── GHQ_t          [Gauss-Hermite nodes]                                   │
+// │                                                                            │
+// └────────────────────────────────────────────────────────────────────────────┘
+//
+//                                  |
+//                                  v
+//
+// ┌────────────────────────────────────────────────────────────────────────────┐
+// │                         paralist (List)                                    │
+// ├────────────────────────────────────────────────────────────────────────────┤
+// │                                                                            │
+// │  Measurement-time submodel                                                  │
+// │  └── beta_time      [K-list; beta_time_k = (alpha_k, theta_k)]              │
+// │                                                                            │
+// │  Mark/value longitudinal submodel                                           │
+// │  ├── delta          [K-list; fixed effects delta_k]                         │
+// │  └── sig2           [K x 1 residual variances sigma_k^2]                    │
+// │                                                                            │
+// │  Binary outcome submodel                                                    │
+// │  ├── gamma          [p_zz x 1 baseline covariate effects]                   │
+// │  ├── alpha_c        [K-list; coefficient basis for a_ik effect]             │
+// │  └── beta_c         [K-list; coefficient basis for b_ik effect]             │
+// │                                                                            │
+// │  Prior covariance of latent random effects                                  │
+// │  └── Sigma_k        [K-list; covariance of c_ik = (a_ik, b_ik)]             │
+// │                                                                            │
+// │  Variational parameters                                                     │
+// │  ├── mu_ik          [n x K flattened list; mean of c_ik]                    │
+// │  └── Z_ik           [n x K flattened list; covariance of c_ik]              │
+// │                                                                            │
+// │  Optional safer future version                                              │
+// │  ├── q_a_vec        [K x 1 dimension of a_ik]                               │
+// │  └── q_b_vec        [K x 1 dimension of b_ik]                               │
+// │                                                                            │
+// └────────────────────────────────────────────────────────────────────────────┘
+//
+// ============================================================================
+//                       IMPORTANT FLATTENING RULE
+// ============================================================================
+//
+// All n x K list objects must be flattened in subject-major order:
+//
+//   (i = 1, k = 1)
+//   (i = 1, k = 2)
+//   ...
+//   (i = 2, k = 1)
+//   (i = 2, k = 2)
+//   ...
+//
+// Flatten these objects:
+//   W, Time, U, Vdesign,
+//   GQ_w_time, X_T_time, Z_T_time, X_gq_time, Z_gq_time,
+//   G,
+//   mu_ik, Z_ik
+//
+// Do NOT flatten H.
+// H is only a K-list, one matrix per biomarker.
+//
+// ============================================================================
+//                     LATENT RANDOM EFFECT STRUCTURE
+// ============================================================================
+//
+// For subject i and biomarker k:
+//
+//   c_ik = ( a_ik )
+//          ( b_ik )
+//
+// where
+//
+//   a_ik = random effects for measurement-time process
+//   b_ik = random effects for mark/value longitudinal process
+//
+// For subject i:
+//
+//   c_i = ( c_i1, c_i2, ..., c_iK )
+//
+// Variational approximation:
+//
+//   q_i(c_i) = Normal(mu_i, Z_i)
+//
+// In C++:
+//   mu_ik(i,k)  stores mean of c_ik
+//   Z_ik(i,k)   stores covariance of c_ik
+//   mu_i(i)     stacks all mu_ik over k
+//   Z_i(i)      block-diagonal stack of all Z_ik over k
+//
+// ============================================================================
