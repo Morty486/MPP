@@ -143,6 +143,18 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// test_model
+List test_model(const List& datalist, const List& paralist);
+RcppExport SEXP _MPP_test_model(SEXP datalistSEXP, SEXP paralistSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const List& >::type datalist(datalistSEXP);
+    Rcpp::traits::input_parameter< const List& >::type paralist(paralistSEXP);
+    rcpp_result_gen = Rcpp::wrap(test_model(datalist, paralist));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_MPP_my_trunc", (DL_FUNC) &_MPP_my_trunc, 1},
@@ -156,6 +168,7 @@ static const R_CallMethodDef CallEntries[] = {
     {"_MPP_init_LME", (DL_FUNC) &_MPP_init_LME, 6},
     {"_MPP_init_LME2_one_marker", (DL_FUNC) &_MPP_init_LME2_one_marker, 7},
     {"_MPP_test_MPP_para_t_basic", (DL_FUNC) &_MPP_test_MPP_para_t_basic, 0},
+    {"_MPP_test_model", (DL_FUNC) &_MPP_test_model, 2},
     {NULL, NULL, 0}
 };
 

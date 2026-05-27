@@ -563,6 +563,60 @@ struct PP2_one_marker_para_t {
 
 
 
+struct MPP_data_t {
+
+  int n;
+  int K;
+  int p_zz;
+
+  arma::vec Y;
+  arma::mat Z;
+  arma::vec weights;
+
+  arma::field<arma::vec> W;        // n x K
+  arma::field<arma::vec> Time;     // n x K
+  arma::field<arma::mat> U;        // n x K
+  arma::field<arma::mat> Vdesign;  // n x K
+
+  MPP_data_t(const List& datalist) {
+
+    Y = as<arma::vec>(datalist["Y"]);
+    Z = as<arma::mat>(datalist["Z"]);
+    weights = as<arma::vec>(datalist["weights"]);
+
+    n = Y.n_elem;
+    p_zz = Z.n_cols;
+    K = as<int>(datalist["K"]);
+
+    // R nested list -> temporary field
+    arma::field<arma::vec> W_tmp = datalist["W"];
+    arma::field<arma::vec> Time_tmp = datalist["Time"];
+    arma::field<arma::mat> U_tmp = datalist["U"];
+    arma::field<arma::mat> V_tmp = datalist["Vdesign"];
+
+    // store as n x K field
+    W = arma::field<arma::vec>(n, K);
+    Time = arma::field<arma::vec>(n, K);
+    U = arma::field<arma::mat>(n, K);
+    Vdesign = arma::field<arma::mat>(n, K);
+
+    int iter = 0;
+    for (int i = 0; i < n; i++) {
+      for (int k = 0; k < K; k++) {
+        W(i,k) = W_tmp(iter);
+        Time(i,k) = Time_tmp(iter);
+        U(i,k) = U_tmp(iter);
+        Vdesign(i,k) = V_tmp(iter);
+        iter++;
+      }
+    }
+  }
+};
+
+
+
+
+
 struct MPP_para_t {
 
   // -----------------------------
@@ -711,6 +765,79 @@ struct MPP_para_t {
       invSigma_k(k) = myinvCpp(Sigma_k(k));
     }
   }
+
+  // -----------------------------
+  // Constructor2
+  // -----------------------------
+
+  MPP_para_t(const List& paralist, const MPP_data_t& data) {
+
+    n = data.n;
+    K = data.K;
+
+    beta_time = as<arma::field<arma::vec>>(paralist["beta_time"]);
+    delta     = as<arma::field<arma::vec>>(paralist["delta"]);
+    sig2      = as<arma::vec>(paralist["sig2"]);
+    gamma     = as<arma::vec>(paralist["gamma"]);
+    alpha_c   = as<arma::field<arma::vec>>(paralist["alpha_c"]);
+    beta_c    = as<arma::field<arma::vec>>(paralist["beta_c"]);
+    Sigma_k   = as<arma::field<arma::mat>>(paralist["Sigma_k"]);
+
+    arma::field<arma::vec> mu_ik_tmp =
+      as<arma::field<arma::vec>>(paralist["mu_ik"]);
+
+    arma::field<arma::mat> Z_ik_tmp =
+      as<arma::field<arma::mat>>(paralist["Z_ik"]);
+
+    mu_ik = arma::field<arma::vec>(n, K);
+    Z_ik  = arma::field<arma::mat>(n, K);
+
+    int iter = 0;
+    for (int i = 0; i < n; i++) {
+      for (int k = 0; k < K; k++) {
+        mu_ik(i, k) = mu_ik_tmp(iter);
+        Z_ik(i, k)  = Z_ik_tmp(iter);
+        iter++;
+      }
+    }
+
+    q_a_vec = arma::uvec(K);
+    q_b_vec = arma::uvec(K);
+    q_c_vec = arma::uvec(K);
+
+    for (int k = 0; k < K; k++) {
+      q_c_vec(k) = Sigma_k(k).n_rows;
+    }
+
+    Sigma = Bdiag(Sigma_k);
+    invSigma = myinvCpp(Sigma);
+    Lmat = myCholCpp(invSigma);
+
+    invSigma_k = arma::field<arma::mat>(K);
+    for (int k = 0; k < K; k++) {
+      invSigma_k(k) = myinvCpp(Sigma_k(k));
+    }
+
+    mu_i = arma::field<arma::vec>(n);
+    Z_i = arma::field<arma::mat>(n);
+    Lvec_i = arma::field<arma::vec>(n);
+
+    for (int i = 0; i < n; i++) {
+      arma::field<arma::vec> mu_blocks(K);
+      arma::field<arma::mat> Z_blocks(K);
+
+      for (int k = 0; k < K; k++) {
+        mu_blocks(k) = mu_ik(i, k);
+        Z_blocks(k) = Z_ik(i, k);
+      }
+
+      mu_i(i) = stack_vec_field(mu_blocks);
+      Z_i(i) = Bdiag(Z_blocks);
+
+      arma::mat Ltmp = myCholCpp(Z_i(i));
+      Lvec_i(i) = LowTriVec(Ltmp);
+    }
+  }
 };
 
 
@@ -846,5 +973,36 @@ List test_MPP_para_t_basic() {
     _["mu_i_1_length"] = para.mu_i(0).n_elem,
     _["Z_i_1_dim"] = arma::uvec({para.Z_i(0).n_rows, para.Z_i(0).n_cols}),
     _["Lvec_i_1_length"] = para.Lvec_i(0).n_elem
+  );
+}
+
+
+
+// [[Rcpp::export]]
+List test_model(const List& datalist,
+                const List& paralist) {
+
+  MPP_data_t data(datalist);
+  MPP_para_t para(paralist, data);
+
+  return List::create(
+
+    _["n"] = data.n,
+    _["K"] = data.K,
+
+    _["Y"] = data.Y,
+    _["weights"] = data.weights,
+
+    _["gamma"] = para.gamma,
+    _["sig2"] = para.sig2,
+
+    _["Sigma"] = para.Sigma,
+    _["invSigma"] = para.invSigma,
+
+    _["mu_i_1"] = para.mu_i(0),
+    _["Z_i_1"] = para.Z_i(0),
+
+    _["W_1_1"] = data.W(0,0),
+    _["Time_1_1"] = data.Time(0,0)
   );
 }

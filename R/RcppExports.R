@@ -45,3 +45,7 @@ test_MPP_para_t_basic <- function() {
     .Call(`_MPP_test_MPP_para_t_basic`)
 }
 
+test_model <- function(datalist, paralist) {
+    .Call(`_MPP_test_model`, datalist, paralist)
+}
+
