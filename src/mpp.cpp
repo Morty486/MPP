@@ -1301,6 +1301,7 @@ public:
     double E_pi = arma::accu(data.GHQ_w % pi_quad);
 
     fval += wi * (data.Y(i) * eta_mean - E_log1pexp);
+    // binary objective
 
     grad_mu += wi * (data.Y(i) - E_pi) * m_i;
 
@@ -1354,6 +1355,8 @@ public:
           arma::accu(data.GQ_w_time(i, k) % h)
       );
 
+      // point process objective
+
       arma::vec grad_mu_a =
         data.Z_T_time(i, k) -
         data.Z_gq_time(i, k).t() *
@@ -1399,6 +1402,8 @@ public:
           )
         );
 
+        // longitudinal objective
+
         arma::vec grad_mu_b =
           data.Vdesign(i, k).t() * resid / sig2_k;
 
@@ -1427,6 +1432,8 @@ public:
       -0.5 * arma::trace(para.invSigma * Z)
     );
 
+    // prior objective
+
     grad_mu -= wi * para.invSigma * mu;
     grad_L  -= wi * para.invSigma * L;
 
@@ -1438,6 +1445,8 @@ public:
     arma::log_det(logdet_Z, sign, Z);
 
     fval += wi * 0.5 * logdet_Z;
+
+    // entropy objective
 
     grad_L += wi * arma::trans(arma::inv(arma::trimatl(L)));
 

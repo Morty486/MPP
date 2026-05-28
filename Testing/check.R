@@ -512,10 +512,6 @@ length(out$mu_i[[1]])
 dim(out$Z_i[[1]])
 length(out$Lvec_i[[1]])
 
-# New dimension checks
-out$q_a_vec
-out$q_b_vec
-out$q_c_vec
 
 
 ##############
