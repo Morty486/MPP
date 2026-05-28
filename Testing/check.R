@@ -95,6 +95,7 @@ C <- matrix(c(1, 2,
               2, 4), nrow = 2, byrow = TRUE)
 
 myinvCpp(C)
+myinvCpp2(C)
 
 # Compare with MASS::ginv()
 MASS::ginv(C)
